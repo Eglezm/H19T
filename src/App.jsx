@@ -119,6 +119,48 @@ function genCodigo(usados) {
   return c;
 }
 
+function genPassword() {
+  return Math.random().toString(36).substring(2,6).toUpperCase();
+}
+
+// Lista de "hoyos físicos" disponibles para O'Yes. En campos de 9 hoyos jugados dos
+// veces, el hoyo 1 y el hoyo 10 son el mismo hoyo físico, así que se combinan en una
+// sola opción (se muestra como "Hoyo 1"), y el sistema toma en cuenta ambas vueltas.
+function hoyosFisicos(torneo) {
+  const esNueve = CAMPOS[torneo.campo]?.nueveHoyos && torneo.pares.length === 18;
+  const n = esNueve ? 9 : torneo.pares.length;
+  return Array.from({length:n}, (_,i) => i+1);
+}
+
+// Todos los jugadores participantes en el torneo (de todas las unidades), con referencia a su unidad
+function todosLosJugadores(torneo) {
+  const list = [];
+  Object.values(torneo.unidades||{}).forEach(u => {
+    (u.jugadores||[]).forEach(j => list.push({ id:j.id, name:j.name, unidadId:u.id, unidadNombre:u.nombre }));
+  });
+  return list;
+}
+
+// Construye la clasificación de O'Yes: agrupa por jugador tomando su MEJOR (menor) distancia,
+// ya sea global ("general") o separada por hoyo físico ("hoyo")
+function clasificacionOyes(torneo) {
+  const entradas = Object.values(torneo.oyesEntradas || {});
+  const modo = torneo.oyes?.modo || "general";
+  const mejorPorJugador = (lista) => {
+    const map = {};
+    lista.forEach(e => {
+      const cur = map[e.jugadorId];
+      if (!cur || e.cm < cur.cm) map[e.jugadorId] = e;
+    });
+    return Object.values(map).sort((a,b) => a.cm - b.cm);
+  };
+  if (modo === "hoyo") {
+    const holes = (torneo.oyes?.holes || []).slice().sort((a,b)=>a-b);
+    return holes.map(h => ({ hole:h, ranking: mejorPorJugador(entradas.filter(e => e.holeFisico === h)) }));
+  }
+  return [{ hole:null, ranking: mejorPorJugador(entradas) }];
+}
+
 // Nombre de la unidad + nombres de los jugadores (si es un equipo de 2+)
 function nombreConJugadores(unidad) {
   if (!unidad) return "";
@@ -284,6 +326,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
               })}
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>Total</th>
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700, borderLeft:`1px solid ${D.border}` }}>vs Par</th>
+              <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>HP</th>
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>vs Par −HP</th>
             </tr>
             <tr>
@@ -295,6 +338,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
               <td style={{ textAlign:"center", padding:big?"4px 10px":"2px 6px", color:D.textDim, fontSize:fs-1, fontWeight:700 }}>{pares.reduce((a,b)=>a+b,0)}</td>
               <td style={{ borderLeft:`1px solid ${D.border}` }}></td>
               <td></td>
+              <td></td>
             </tr>
           </thead>
           <tbody>
@@ -302,7 +346,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
               <tr key={u.id} style={{ borderTop:`1px solid ${D.border}` }}>
                 <td style={{ padding:big?"8px 10px":"5px 6px", fontWeight:600, position:"sticky", left:0, background:D.surface, whiteSpace:"nowrap" }}>
                   <div>{u.nombre}</div>
-                  <div style={{ fontSize:big?12:9, color:D.textDim, fontWeight:400 }}>{u.brutoReal} − {u.hcAplicado}{u.hoyoSalida!=null?` · ★H${u.hoyoSalida+1}`:""}</div>
+                  <div style={{ fontSize:big?12:9, color:D.textDim, fontWeight:400 }}>{(u.jugadores||[]).map(j=>j.name.split(" ")[0]).join(", ")}</div>
                 </td>
                 {pares.map((par, h) => {
                   const s = (u.scores||[])[h];
@@ -316,6 +360,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
                 })}
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:900, color:D.gold }}>{u.brutoReal}</td>
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:900, color:colorVsPar(u.vsPar), borderLeft:`1px solid ${D.border}` }}>{fmtVsPar(u.vsPar)}</td>
+                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:700, color:D.textSub }}>{u.hcAplicado}</td>
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>
               </tr>
             ))}
@@ -340,7 +385,46 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
   );
 }
 
-// ─── VISTA ESPECTADOR (público, solo lectura) ─────
+// ─── CLASIFICACIÓN DE O'YES (reutilizable) ────────
+function OyesLiveView({ torneo, big }) {
+  if (!torneo.oyes || !torneo.oyes.holes || torneo.oyes.holes.length===0) {
+    return (
+      <Card style={big ? { padding:24 } : {}}>
+        <SLabel style={big ? { fontSize:16 } : {}}>🎯 O'Yes</SLabel>
+        <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:big?15:13 }}>Este torneo aún no tiene hoyos de O'Yes configurados.</div>
+      </Card>
+    );
+  }
+  const premios = torneo.oyes.premios || 3;
+  const grupos = clasificacionOyes(torneo);
+  const RankList = ({ ranking }) => (
+    <>
+      {ranking.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:big?20:14, fontSize:big?15:13 }}>Aún no hay anotaciones</div>}
+      {ranking.map((e, pos) => (
+        <div key={e.jugadorId} style={{ display:"flex", alignItems:"center", gap:big?16:10, padding:big?"14px 0":"9px 0", borderBottom:pos<ranking.length-1?`1px solid ${D.border}`:"none", background:pos<premios?D.goldDim+"55":"transparent" }}>
+          <div style={{ width:big?36:24, height:big?36:24, borderRadius:"50%", background:pos<premios?D.goldDim:D.surface, border:`1px solid ${pos<premios?D.gold:D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:big?16:12, fontWeight:900, color:pos<premios?D.gold:D.textSub, flexShrink:0 }}>{pos+1}</div>
+          <Avatar name={e.jugadorNombre} id={e.jugadorId} size={big?40:28} />
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:big?18:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
+            <div style={{ fontSize:big?13:10, color:D.textSub }}>{e.unidadNombre}</div>
+          </div>
+          {pos<premios && <div style={{ fontSize:big?16:11, marginRight:4 }}>🏆</div>}
+          <div style={{ fontSize:big?24:16, fontWeight:900, color:pos<premios?D.gold:D.text }}>{e.cm} <span style={{ fontSize:big?13:9, fontWeight:600, color:D.textSub }}>cm</span></div>
+        </div>
+      ))}
+    </>
+  );
+  return (
+    <>
+      {grupos.map((g, gi) => (
+        <Card key={gi} style={big ? { padding:24 } : {}}>
+          <SLabel style={big ? { fontSize:16 } : {}}>🎯 {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados</span></SLabel>
+          <RankList ranking={g.ranking} />
+        </Card>
+      ))}
+    </>
+  );
+}
 function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const [torneo, setTorneo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -369,6 +453,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <option value="todo">Posiciones + Tarjeta</option>
               <option value="tarjeta">Solo Tarjeta</option>
               <option value="posiciones">Solo Posiciones</option>
+              {torneo.oyes?.holes?.length>0 && <option value="oyes">Solo O'Yes</option>}
             </select>
           )}
           <button onClick={() => setTvMode(v=>!v)} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
@@ -384,8 +469,14 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
       </div>
       <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20 } : { padding:"12px 12px 32px" }}>
-        {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
-        {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+        {vista === "oyes" ? (
+          <OyesLiveView torneo={torneo} big={tvMode} />
+        ) : (
+          <>
+            {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
+            {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+          </>
+        )}
         {!tvMode && <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:8 }}>Vista de solo lectura · Actualización automática</div>}
       </div>
     </div>
@@ -544,7 +635,130 @@ function TeamPlayView({ codigo, onExit }) {
   );
 }
 
-// ─── APP PRINCIPAL (routing) ──────────────────────
+// ─── ANOTACIÓN DE O'YES (protegida por contraseña) ─
+function OyesRecordView({ torneoId, onExit }) {
+  const [torneo, setTorneo] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [autenticado, setAutenticado] = useState(false);
+  const [passInput, setPassInput] = useState("");
+  const [passError, setPassError] = useState(false);
+  const [jugadorId, setJugadorId] = useState("");
+  const [hole, setHole] = useState("");
+  const [cm, setCm] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const [confirmDeleteEntry, setConfirmDeleteEntry] = useState(null);
+  const [okMsg, setOkMsg] = useState("");
+
+  useEffect(() => {
+    const r = ref(db, `torneos/${torneoId}`);
+    const unsub = onValue(r, snap => { setTorneo(snap.exists() ? snap.val() : null); setLoading(false); });
+    return () => unsub();
+  }, [torneoId]);
+
+  if (loading) return <Spinner label="Conectando..." />;
+  if (!torneo) return <Spinner label="Torneo no encontrado" />;
+  if (!torneo.oyes || !torneo.oyes.password) {
+    return (
+      <div style={{ ...appStyle, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, padding:24, textAlign:"center" }}>
+        <div style={{ fontSize:32 }}>🎯</div>
+        <div style={{ color:D.textSub }}>Este torneo aún no tiene configurada la anotación de O'Yes.</div>
+        <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>← Volver</button>
+      </div>
+    );
+  }
+
+  if (!autenticado) {
+    return (
+      <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
+        <div style={{ fontSize:40, fontWeight:900, color:D.gold }}>🎯 O'Yes</div>
+        <div style={{ fontSize:14, color:D.textSub, marginBottom:4, textAlign:"center" }}>{torneo.nombre}</div>
+        <div style={{ fontSize:13, color:D.textSub, marginBottom:8 }}>Ingresa la contraseña de anotación</div>
+        <input type="password" value={passInput} onChange={e=>setPassInput(e.target.value)} placeholder="Contraseña" maxLength={8}
+          style={{ width:"100%", padding:14, border:`1px solid ${passError?D.danger:D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700 }} />
+        {passError && <div style={{ color:D.danger, fontSize:13 }}>Contraseña incorrecta</div>}
+        <Btn onClick={() => { if (passInput.trim().toUpperCase()===torneo.oyes.password) { setAutenticado(true); setPassError(false); } else setPassError(true); }}>Entrar</Btn>
+        <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>← Volver</button>
+      </div>
+    );
+  }
+
+  const holes = torneo.oyes.holes || [];
+  const jugadores = todosLosJugadores(torneo).filter(j => j.name.toLowerCase().includes(busqueda.toLowerCase()));
+  const entradas = Object.entries(torneo.oyesEntradas || {}).sort((a,b) => (b[1].ts||0)-(a[1].ts||0)).slice(0,15);
+
+  const anotar = () => {
+    if (!jugadorId || !hole || !cm || parseInt(cm)<=0) return;
+    const jug = todosLosJugadores(torneo).find(j=>j.id===parseInt(jugadorId) || j.id===jugadorId);
+    if (!jug) return;
+    const id = `E${Date.now()}`;
+    set(ref(db, `torneos/${torneoId}/oyesEntradas/${id}`), {
+      jugadorId: jug.id, jugadorNombre: jug.name, unidadNombre: jug.unidadNombre,
+      holeFisico: parseInt(hole), cm: parseInt(cm), ts: Date.now(),
+    }).then(() => { setOkMsg(`✓ ${jug.name} — ${cm}cm en hoyo ${hole}`); setTimeout(()=>setOkMsg(""),2500); setCm(""); });
+  };
+
+  return (
+    <div style={appStyle}>
+      <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"14px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ fontSize:20, fontWeight:900, color:D.gold }}>🎯 Anotar O'Yes</div>
+          <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
+        </div>
+        <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre}</div>
+      </div>
+      <div style={{ padding:"12px 12px 32px" }}>
+        {okMsg && <div style={{ padding:"8px 12px", background:D.greenBg, border:`1px solid ${D.success}`, borderRadius:10, color:D.success, fontSize:12, textAlign:"center", fontWeight:600, marginBottom:10 }}>{okMsg}</div>}
+        <Card>
+          <SLabel>Nueva anotación</SLabel>
+          <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Jugador</div>
+          <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar jugador..." style={{ width:"100%", padding:"9px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box", marginBottom:8 }} />
+          <div style={{ maxHeight:160, overflowY:"auto", border:`1px solid ${D.border}`, borderRadius:10, marginBottom:12 }}>
+            {jugadores.map(j => (
+              <div key={j.id} onClick={() => setJugadorId(String(j.id))} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:String(jugadorId)===String(j.id)?D.goldDim:"transparent", cursor:"pointer", borderBottom:`1px solid ${D.border}` }}>
+                <Avatar name={j.name} id={j.id} size={24} />
+                <div style={{ flex:1, fontSize:13, fontWeight:600 }}>{j.name}</div>
+                <div style={{ fontSize:10, color:D.textSub }}>{j.unidadNombre}</div>
+              </div>
+            ))}
+            {jugadores.length===0 && <div style={{ padding:12, textAlign:"center", color:D.textSub, fontSize:12 }}>Sin resultados</div>}
+          </div>
+          <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Hoyo</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:12 }}>
+            {holes.map(h => (
+              <button key={h} onClick={() => setHole(String(h))} style={{ padding:"8px 14px", border:`1px solid ${String(hole)===String(h)?D.gold:D.border}`, borderRadius:10, background:String(hole)===String(h)?D.goldDim:"transparent", color:String(hole)===String(h)?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>Hoyo {h}</button>
+            ))}
+          </div>
+          <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Distancia (centímetros)</div>
+          <input type="number" min="1" value={cm} onChange={e=>setCm(e.target.value)} placeholder="Ej. 245" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
+          <Btn onClick={anotar} disabled={!jugadorId||!hole||!cm}>🎯 Guardar anotación</Btn>
+        </Card>
+
+        <Card>
+          <SLabel>Últimas anotaciones</SLabel>
+          {entradas.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:12, fontSize:13 }}>Aún no hay anotaciones</div>}
+          {entradas.map(([id, e]) => (
+            <div key={id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 0", borderBottom:`1px solid ${D.border}` }}>
+              <Avatar name={e.jugadorNombre} id={e.jugadorId} size={26} />
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:12, fontWeight:600 }}>{e.jugadorNombre}</div>
+                <div style={{ fontSize:10, color:D.textSub }}>Hoyo {e.holeFisico} · {e.unidadNombre}</div>
+              </div>
+              <div style={{ fontSize:14, fontWeight:900, color:D.gold, marginRight:6 }}>{e.cm} cm</div>
+              {confirmDeleteEntry===id ? (
+                <div style={{ display:"flex", gap:4 }}>
+                  <button onClick={() => { remove(ref(db, `torneos/${torneoId}/oyesEntradas/${id}`)); setConfirmDeleteEntry(null); }} style={{ padding:"4px 8px", border:`1px solid ${D.danger}`, borderRadius:8, background:D.redBg, color:D.danger, fontSize:10, fontWeight:700, cursor:"pointer" }}>Sí</button>
+                  <button onClick={() => setConfirmDeleteEntry(null)} style={{ padding:"4px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:10, cursor:"pointer" }}>No</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDeleteEntry(id)} style={{ padding:"4px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}>✕</button>
+              )}
+            </div>
+          ))}
+        </Card>
+      </div>
+    </div>
+  );
+}
 export default function H19T() {
   const [mode, setMode] = useState(null);
   const [pinInput, setPinInput] = useState("");
@@ -554,13 +768,16 @@ export default function H19T() {
   const [activeCodigo, setActiveCodigo] = useState(null);
   const [activeTorneoId, setActiveTorneoId] = useState(null);
   const [activeVista, setActiveVista] = useState("todo");
+  const [activeOyesTorneo, setActiveOyesTorneo] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const eq = params.get("equipo");
     const tr = params.get("torneo");
     const vt = params.get("vista");
+    const oy = params.get("oyes");
     if (eq) { setActiveCodigo(eq.toUpperCase()); setMode("team"); }
+    else if (oy) { setActiveOyesTorneo(oy); setMode("oyes"); }
     else if (tr) { setActiveTorneoId(tr); if (vt) setActiveVista(vt); setMode("spectator"); }
     else setMode("home");
   }, []);
@@ -568,6 +785,7 @@ export default function H19T() {
   if (mode === null) return <Spinner label="Cargando H19T..." />;
   if (mode === "team" && activeCodigo) return <TeamPlayView codigo={activeCodigo} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
   if (mode === "spectator" && activeTorneoId) return <SpectatorTorneoView torneoId={activeTorneoId} vistaInicial={activeVista} />;
+  if (mode === "oyes" && activeOyesTorneo) return <OyesRecordView torneoId={activeOyesTorneo} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
 
   if (mode === "home") {
     return (
@@ -657,6 +875,10 @@ function AdminTorneoApp({ onExit }) {
   const [guardadoOk, setGuardadoOk] = useState("");
   const [confirmDeleteTorneo, setConfirmDeleteTorneo] = useState(null);
   const [confirmDeleteHist, setConfirmDeleteHist] = useState(null);
+  const [oyesModo, setOyesModo] = useState("general");
+  const [oyesHoles, setOyesHoles] = useState([]);
+  const [oyesPremios, setOyesPremios] = useState(3);
+  const [oyesSyncedFor, setOyesSyncedFor] = useState(null);
 
   // Elimina una ronda del historial, y de paso limpia el torneo original y sus códigos si aún existen
   const eliminarHistorialEntry = (r) => {
@@ -727,6 +949,18 @@ function AdminTorneoApp({ onExit }) {
     const unsub = onValue(r, snap => setTorneo(snap.exists() ? snap.val() : null));
     return () => unsub();
   }, [torneoId]);
+
+  // Sincroniza el formulario de O'Yes con lo guardado en el torneo, solo la primera vez que se carga
+  useEffect(() => {
+    if (torneo && torneoId && oyesSyncedFor !== torneoId) {
+      if (torneo.oyes) {
+        setOyesModo(torneo.oyes.modo || "general");
+        setOyesHoles(torneo.oyes.holes || []);
+        setOyesPremios(torneo.oyes.premios || 3);
+      }
+      setOyesSyncedFor(torneoId);
+    }
+  }, [torneo, torneoId, oyesSyncedFor]);
 
   const saveDir = (newPlayers, newNidVal) => set(ref(db, "h19tDirectorio"), { players:newPlayers, nextId:newNidVal||nid });
   const addPlayer = () => {
@@ -858,6 +1092,27 @@ function AdminTorneoApp({ onExit }) {
     const updates = {};
     unidadesDelGrupo.forEach(u => { updates[`torneos/${torneoId}/unidades/${u.id}/hoyoSalida`] = nuevoHoyo - 1; });
     Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)));
+  };
+
+  // ── O'YES ──
+  const toggleOyesHole = (h) => setOyesHoles(prev => prev.includes(h) ? prev.filter(x=>x!==h) : [...prev, h].sort((a,b)=>a-b));
+  const generarPasswordOyes = () => set(ref(db, `torneos/${torneoId}/oyes/password`), genPassword());
+  const guardarConfigOyes = () => {
+    set(ref(db, `torneos/${torneoId}/oyes`), {
+      modo: oyesModo, holes: oyesHoles, premios: oyesPremios,
+      password: torneo?.oyes?.password || genPassword(),
+    });
+  };
+  const compartirOyesWhatsapp = () => {
+    const urlAnotar = `${window.location.origin}${window.location.pathname}?oyes=${torneoId}`;
+    const urlVer = `${window.location.origin}${window.location.pathname}?torneo=${torneoId}&vista=oyes`;
+    const lines = [
+      `🎯 *H19T — ${torneo.nombre} — O'Yes*`, ``,
+      `Para anotar distancias, entra aquí:`, urlAnotar,
+      `Contraseña: *${torneo.oyes.password}*`, ``,
+      `Para ver la clasificación en vivo:`, urlVer,
+    ].join("\n");
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
   const iniciarTorneo = () => { set(ref(db, `torneos/${torneoId}/status`), "en_juego"); };
@@ -1068,7 +1323,7 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="unidades" onChange={setScreen} />
+          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="unidades" onChange={setScreen} />
           <Card>
             <SLabel>{MODALIDADES[torneo.modalidad].label} · {torneo.nHoles} hoyos · HC {torneo.hcPercent}%</SLabel>
             <div style={{ fontSize:12, color:D.textSub }}>Selecciona {tamañoModalidad} jugador{tamañoModalidad>1?"es":""} para formar {tamañoModalidad>1?"un equipo":"una unidad individual"}.</div>
@@ -1158,7 +1413,7 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="grupos" onChange={setScreen} />
+          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="grupos" onChange={setScreen} />
 
           {sinGrupo.length>0 && (
             <Card>
@@ -1239,6 +1494,83 @@ function AdminTorneoApp({ onExit }) {
     );
   }
 
+  // ── O'YES: CONFIGURACIÓN ──
+  if (screen==="oyes" && torneo) {
+    const holesDisponibles = hoyosFisicos(torneo);
+    const yaConfigurado = !!torneo.oyes?.password;
+    return (
+      <div style={appSt}>
+        <Header title={torneo.nombre} />
+        <div style={{ padding:"12px 12px" }}>
+          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="oyes" onChange={setScreen} />
+
+          <Card>
+            <SLabel>Modalidad de premiación</SLabel>
+            {[
+              {key:"general", label:"O'Yes General", desc:"Un solo premio (o varios lugares) sin importar en qué hoyo se hizo, entre todos los hoyos seleccionados."},
+              {key:"hoyo", label:"O'Yes por Hoyo", desc:"Premios independientes en cada hoyo seleccionado."},
+            ].map(o => (
+              <button key={o.key} onClick={() => setOyesModo(o.key)} style={{ width:"100%", padding:"10px 14px", border:`1px solid ${oyesModo===o.key?D.gold:D.border}`, borderRadius:10, background:oyesModo===o.key?D.goldDim:"transparent", color:oyesModo===o.key?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", textAlign:"left", marginBottom:8 }}>
+                {oyesModo===o.key?"✓ ":""}{o.label}
+                <div style={{ fontSize:11, fontWeight:400, color:D.textDim, marginTop:2 }}>{o.desc}</div>
+              </button>
+            ))}
+          </Card>
+
+          <Card>
+            <SLabel>Hoyos con premio de O'Yes</SLabel>
+            {CAMPOS[torneo.campo]?.nueveHoyos && torneo.pares.length===18 && (
+              <div style={{ fontSize:11, color:D.textSub, marginBottom:10 }}>Como este campo es de 9 hoyos jugados dos veces, cada hoyo combina automáticamente sus dos vueltas (ej. Hoyo 1 incluye lo anotado tanto en la salida de Blancas como en la de Azules).</div>
+            )}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+              {holesDisponibles.map(h => (
+                <button key={h} onClick={() => toggleOyesHole(h)} style={{ padding:"8px 14px", border:`1px solid ${oyesHoles.includes(h)?D.gold:D.border}`, borderRadius:10, background:oyesHoles.includes(h)?D.goldDim:"transparent", color:oyesHoles.includes(h)?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                  {oyesHoles.includes(h)?"✓ ":""}Hoyo {h}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <SLabel>Número de premios (lugares) {oyesModo==="hoyo" ? "por hoyo" : ""}</SLabel>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <button onClick={() => setOyesPremios(Math.max(1,oyesPremios-1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.border}`,background:"transparent",color:D.text,cursor:"pointer",fontSize:18 }}>−</button>
+              <div style={{ flex:1, textAlign:"center", fontSize:20, fontWeight:900, color:D.gold }}>{oyesPremios}</div>
+              <button onClick={() => setOyesPremios(Math.min(10,oyesPremios+1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:18 }}>+</button>
+            </div>
+          </Card>
+
+          <Btn onClick={guardarConfigOyes} disabled={oyesHoles.length===0}>{yaConfigurado ? "Guardar cambios" : "Activar O'Yes en este torneo"}</Btn>
+
+          {yaConfigurado && (
+            <>
+              <Card style={{ marginTop:16 }}>
+                <SLabel>🔑 Acceso para anotar</SLabel>
+                <div style={{ fontSize:12, color:D.textSub, marginBottom:10 }}>Comparte este link y la contraseña con quien vaya a anotar distancias en el campo (puede ser más de una persona, todos usan la misma contraseña).</div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 12px", background:D.goldDim, borderRadius:10, marginBottom:10 }}>
+                  <span style={{ fontSize:12, color:D.textSub }}>Contraseña</span>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <span style={{ fontSize:18, fontWeight:900, color:D.gold, letterSpacing:2 }}>{torneo.oyes.password}</span>
+                    <button onClick={generarPasswordOyes} style={{ padding:"4px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:10, cursor:"pointer" }}>🔄 Regenerar</button>
+                  </div>
+                </div>
+                <button onClick={compartirOyesWhatsapp} style={{ width:"100%", padding:"12px", border:"none", borderRadius:12, background:"#25D366", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>💬 Compartir por WhatsApp (link + contraseña)</button>
+              </Card>
+
+              <Card>
+                <SLabel>📺 Ver clasificación en vivo</SLabel>
+                <div style={{ fontSize:12, color:D.textSub, marginBottom:8 }}>Este link es público, sin contraseña — ideal para proyectar.</div>
+                <div style={{ fontSize:11, color:D.gold, wordBreak:"break-all" }}>{window.location.origin}{window.location.pathname}?torneo={torneoId}&vista=oyes</div>
+              </Card>
+
+              <OyesLiveView torneo={torneo} />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ── LISTA IMPRIMIBLE DE EQUIPOS Y CÓDIGOS ──
   if (screen==="imprimir" && torneo) {
     const unidadesList = Object.values(torneo.unidades||{}).slice().sort((a,b) => {
@@ -1252,7 +1584,7 @@ function AdminTorneoApp({ onExit }) {
           <Header title={torneo.nombre} />
         </div>
         <div style={{ padding:"12px 12px" }} className="no-print">
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="imprimir" onChange={setScreen} />
+          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="imprimir" onChange={setScreen} />
           <button onClick={() => window.print()} style={{ width:"100%", padding:"12px", border:"none", borderRadius:12, background:`linear-gradient(135deg,${D.gold},${D.goldLight})`, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:12 }}>🖨️ Imprimir esta lista</button>
         </div>
         <div style={{ padding:"0 12px 32px" }}>
@@ -1280,7 +1612,7 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="live" onChange={setScreen} />
+          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="live" onChange={setScreen} />
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
             <button onClick={shareTorneo} style={{ flex:1, padding:"10px", border:`1px solid ${D.gold}`, borderRadius:12, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:"pointer" }}>📤 Compartir link espectador</button>
           </div>
@@ -1306,7 +1638,7 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="captura" onChange={setScreen} />
+          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="captura" onChange={setScreen} />
           <Card>
             <SLabel>Elige la unidad a capturar o corregir</SLabel>
             <div style={{ fontSize:12, color:D.textSub, marginBottom:10 }}>Como admin puedes anotar o corregir el score de cualquier equipo, sin necesitar su código — útil para errores o para ayudar con la captura.</div>
