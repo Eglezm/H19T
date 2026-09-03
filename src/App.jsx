@@ -397,7 +397,7 @@ function OyesLiveView({ torneo, big }) {
   }
   const premios = torneo.oyes.premios || 3;
   const grupos = clasificacionOyes(torneo);
-  const RankList = ({ ranking }) => (
+  const RankList = ({ ranking, showHole }) => (
     <>
       {ranking.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:big?20:14, fontSize:big?15:13 }}>Aún no hay anotaciones</div>}
       {ranking.map((e, pos) => (
@@ -406,7 +406,7 @@ function OyesLiveView({ torneo, big }) {
           <Avatar name={e.jugadorNombre} id={e.jugadorId} size={big?40:28} />
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:big?18:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
-            <div style={{ fontSize:big?13:10, color:D.textSub }}>{e.unidadNombre}</div>
+            <div style={{ fontSize:big?13:10, color:D.textSub }}>{e.unidadNombre}{showHole ? ` · Hoyo ${e.holeFisico}` : ""}</div>
           </div>
           {pos<premios && <div style={{ fontSize:big?16:11, marginRight:4 }}>🏆</div>}
           <div style={{ fontSize:big?24:16, fontWeight:900, color:pos<premios?D.gold:D.text }}>{e.cm} <span style={{ fontSize:big?13:9, fontWeight:600, color:D.textSub }}>cm</span></div>
@@ -419,7 +419,7 @@ function OyesLiveView({ torneo, big }) {
       {grupos.map((g, gi) => (
         <Card key={gi} style={big ? { padding:24 } : {}}>
           <SLabel style={big ? { fontSize:16 } : {}}>🎯 {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados</span></SLabel>
-          <RankList ranking={g.ranking} />
+          <RankList ranking={g.ranking} showHole={g.hole===null} />
         </Card>
       ))}
     </>
@@ -429,7 +429,8 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const [torneo, setTorneo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tvMode, setTvMode] = useState(vistaInicial !== "todo");
-  const [vista, setVista] = useState(vistaInicial); // "todo" | "tarjeta" | "posiciones"
+  const [vista, setVista] = useState(vistaInicial); // "todo" | "tarjeta" | "posiciones" | "oyes" | "auto"
+  const [autoSlide, setAutoSlide] = useState(0); // 0 = tarjeta, 1 = oyes
 
   useEffect(() => {
     const r = ref(db, `torneos/${torneoId}`);
@@ -437,12 +438,20 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
     return () => unsub();
   }, [torneoId]);
 
+  // Modo automático: alterna Tarjeta ↔ O'Yes cada 15 segundos, sin tocar la pantalla
+  useEffect(() => {
+    if (vista !== "auto") return;
+    const id = setInterval(() => setAutoSlide(s => s===0 ? 1 : 0), 15000);
+    return () => clearInterval(id);
+  }, [vista]);
+
   if (loading) return <Spinner label="Conectando..." />;
   if (!torneo) return <Spinner label="Torneo no encontrado" />;
 
   const campoNombre = CAMPOS[torneo.campo]?.nombre || torneo.campo;
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
   const tvStyle = { fontSize:14, fontFamily:"-apple-system,sans-serif", color:D.text, background:D.bg, minHeight:"100vh", width:"100%", margin:"0 auto" };
+  const hayOyes = torneo.oyes?.holes?.length>0;
 
   return (
     <div style={tvMode ? tvStyle : appStyle}>
@@ -453,7 +462,8 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <option value="todo">Posiciones + Tarjeta</option>
               <option value="tarjeta">Solo Tarjeta</option>
               <option value="posiciones">Solo Posiciones</option>
-              {torneo.oyes?.holes?.length>0 && <option value="oyes">Solo O'Yes</option>}
+              {hayOyes && <option value="oyes">Solo O'Yes</option>}
+              {hayOyes && <option value="auto">🔄 Automático (Tarjeta ↔ O'Yes)</option>}
             </select>
           )}
           <button onClick={() => setTvMode(v=>!v)} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
@@ -467,9 +477,16 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
           <div style={{ width:tvMode?9:6, height:tvMode?9:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.gold }} />
           <span style={{ fontSize:tvMode?15:11, fontWeight:700, color:torneo.status==="finalizada"?D.success:D.gold }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
         </div>
+        {vista === "auto" && (
+          <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:6, padding:"5px 14px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
+            <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub }}>{autoSlide===0 ? "🏌️ Mostrando: Tarjeta" : "🎯 Mostrando: O'Yes"} · cambia cada 15s</span>
+          </div>
+        )}
       </div>
       <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20 } : { padding:"12px 12px 32px" }}>
-        {vista === "oyes" ? (
+        {vista === "auto" ? (
+          autoSlide === 0 ? <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} /> : <OyesLiveView torneo={torneo} big={tvMode} />
+        ) : vista === "oyes" ? (
           <OyesLiveView torneo={torneo} big={tvMode} />
         ) : (
           <>
