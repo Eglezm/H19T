@@ -70,6 +70,39 @@ function getBadge(s, par) {
   return { label:"+"+d, bg:"#FFDBDB", fg:"#C62828" };
 }
 
+// Notación tradicional de golf para la tarjeta: par = número solo, birdie = círculo,
+// eagle o mejor = doble círculo, bogey = cuadro, doble bogey = doble cuadro (rojo),
+// triple bogey o peor = doble cuadro (rojo oscuro)
+function ScoreCell({ s, par, big }) {
+  const fs = big ? 15 : 11;
+  if (s === null || s === undefined) return <span style={{ fontSize:fs, color:D.textDim }}>—</span>;
+  if (!par) return <span style={{ fontSize:fs, fontWeight:700 }}>{s}</span>;
+  const d = s - par;
+  const outer = big ? 30 : 21;
+  const inner = outer - 6;
+  const numSt = { fontSize:fs, fontWeight:700, lineHeight:1 };
+  const wrapSt = (size, radius, color) => ({ display:"inline-flex", alignItems:"center", justifyContent:"center", width:size, height:size, borderRadius:radius, border:`1.4px solid ${color}` });
+
+  if (d === 0) return <span style={{ ...numSt, color:D.text }}>{s}</span>;
+  if (d === -1) return <span style={{ ...wrapSt(outer, "50%", D.success), ...numSt, color:D.success }}>{s}</span>; // birdie
+  if (d <= -2) return ( // eagle o mejor
+    <span style={wrapSt(outer+5, "50%", D.gold)}>
+      <span style={{ ...wrapSt(inner, "50%", D.gold), ...numSt, color:D.gold }}>{s}</span>
+    </span>
+  );
+  if (d === 1) return <span style={{ ...wrapSt(outer, 3, "#8A4A00"), ...numSt, color:"#8A4A00" }}>{s}</span>; // bogey
+  if (d === 2) return ( // doble bogey
+    <span style={wrapSt(outer+5, 4, "#C62828")}>
+      <span style={{ ...wrapSt(inner, 2, "#C62828"), ...numSt, color:"#C62828" }}>{s}</span>
+    </span>
+  );
+  return ( // triple bogey o peor
+    <span style={wrapSt(outer+5, 4, "#6B1414")}>
+      <span style={{ ...wrapSt(inner, 2, "#6B1414"), ...numSt, color:"#6B1414" }}>{s}</span>
+    </span>
+  );
+}
+
 function teeColor(campo, holeIndex) {
   const c = CAMPOS[campo];
   if (!c || !c.nueveHoyos) return null;
@@ -139,7 +172,7 @@ function leaderboard(torneo) {
   if (!torneo || !torneo.unidades || !torneo.pares) return [];
   return Object.values(torneo.unidades)
     .map(u => ({ ...u, ...calcTotales(u, torneo.pares) }))
-    .sort((a,b) => a.neto - b.neto);
+    .sort((a,b) => a.vsParHc - b.vsParHc);
 }
 
 // ─── UI PRIMITIVAS (mismo lenguaje visual que H19 Golf) ──
@@ -273,12 +306,11 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
                 </td>
                 {pares.map((par, h) => {
                   const s = (u.scores||[])[h];
-                  const b = getBadge(s, par);
                   const esSalida = u.hoyoSalida === h;
                   return (
                     <td key={h} style={{ textAlign:"center", padding:big?"8px 4px":"5px 2px", position:"relative", outline:esSalida?`2px solid ${D.gold}`:"none", outlineOffset:-2 }}>
                       {esSalida && <span style={{ position:"absolute", top:1, right:2, fontSize:big?10:7, color:D.gold }}>★</span>}
-                      <span style={{ display:"inline-block", minWidth:big?26:18, padding:big?"3px 5px":"1px 3px", borderRadius:5, fontWeight:700, fontSize:fs, background:b?b.bg:"transparent", color:b?b.fg:D.text }}>{s ?? "—"}</span>
+                      <ScoreCell s={s} par={par} big={big} />
                     </td>
                   );
                 })}
@@ -289,6 +321,14 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
             ))}
           </tbody>
         </table>
+      </div>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:big?16:10, justifyContent:"center", marginTop:12, fontSize:big?12:9, color:D.textSub }}>
+        <span style={{ display:"flex", alignItems:"center", gap:4 }}><ScoreCell s={2} par={4}/> Eagle+</span>
+        <span style={{ display:"flex", alignItems:"center", gap:4 }}><ScoreCell s={3} par={4}/> Birdie</span>
+        <span style={{ display:"flex", alignItems:"center", gap:4 }}><ScoreCell s={4} par={4}/> Par</span>
+        <span style={{ display:"flex", alignItems:"center", gap:4 }}><ScoreCell s={5} par={4}/> Bogey</span>
+        <span style={{ display:"flex", alignItems:"center", gap:4 }}><ScoreCell s={6} par={4}/> Doble bogey</span>
+        <span style={{ display:"flex", alignItems:"center", gap:4 }}><ScoreCell s={7} par={4}/> Triple+</span>
       </div>
       {CAMPOS[torneo.campo]?.nueveHoyos && pares.length===18 && (
         <div style={{ display:"flex", gap:14, justifyContent:"center", marginTop:10, fontSize:big?13:10, color:D.textSub }}>
@@ -301,10 +341,11 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
 }
 
 // ─── VISTA ESPECTADOR (público, solo lectura) ─────
-function SpectatorTorneoView({ torneoId }) {
+function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const [torneo, setTorneo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tvMode, setTvMode] = useState(false);
+  const [tvMode, setTvMode] = useState(vistaInicial !== "todo");
+  const [vista, setVista] = useState(vistaInicial); // "todo" | "tarjeta" | "posiciones"
 
   useEffect(() => {
     const r = ref(db, `torneos/${torneoId}`);
@@ -322,9 +363,18 @@ function SpectatorTorneoView({ torneoId }) {
   return (
     <div style={tvMode ? tvStyle : appStyle}>
       <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:tvMode?"32px 24px 24px":"20px 16px 14px", textAlign:"center", position:"relative" }}>
-        <button onClick={() => setTvMode(v=>!v)} style={{ position:"absolute", top:tvMode?24:14, right:tvMode?24:14, padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
-          {tvMode ? "✕ Salir de pantalla completa" : "🖥️ Modo pantalla completa"}
-        </button>
+        <div style={{ position:"absolute", top:tvMode?24:14, right:tvMode?24:14, display:"flex", gap:8 }} className="no-print">
+          {tvMode && (
+            <select value={vista} onChange={e=>setVista(e.target.value)} style={{ padding:"8px 14px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:13, fontWeight:700 }}>
+              <option value="todo">Posiciones + Tarjeta</option>
+              <option value="tarjeta">Solo Tarjeta</option>
+              <option value="posiciones">Solo Posiciones</option>
+            </select>
+          )}
+          <button onClick={() => setTvMode(v=>!v)} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
+            {tvMode ? "✕ Salir de pantalla completa" : "🖥️ Modo pantalla completa"}
+          </button>
+        </div>
         <div style={{ fontSize:tvMode?54:30, fontWeight:900, color:D.gold }}>H19T</div>
         <div style={{ fontSize:tvMode?26:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
         <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
@@ -333,9 +383,9 @@ function SpectatorTorneoView({ torneoId }) {
           <span style={{ fontSize:tvMode?15:11, fontWeight:700, color:torneo.status==="finalizada"?D.success:D.gold }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
         </div>
       </div>
-      <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gridTemplateColumns: torneo.pares?.length ? "1fr" : "1fr", gap:20 } : { padding:"12px 12px 32px" }}>
-        <TablaPosiciones torneo={torneo} big={tvMode} />
-        <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />
+      <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20 } : { padding:"12px 12px 32px" }}>
+        {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
+        {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
         {!tvMode && <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:8 }}>Vista de solo lectura · Actualización automática</div>}
       </div>
     </div>
@@ -439,7 +489,7 @@ function TeamPlayView({ codigo, onExit }) {
         </div>
       ) : (
         <div style={{ padding:"0 12px 32px" }}>
-          <TabBar tabs={[{key:"marcar",label:"✏️ Anotar"},{key:"mio",label:"👀 Mi score"},{key:"pos",label:"🏆 Posiciones"},{key:"tabla",label:"📋 Tarjeta"}]} active={tab} onChange={cambiarTab} />
+          <TabBar tabs={[{key:"marcar",label:"✏️ Anotar"},{key:"mio",label:"👀 Mi score"},{key:"pos",label:"🏆 Marcador en vivo"}]} active={tab} onChange={cambiarTab} />
 
           {tab === "marcar" && marcoA && (
             <Card>
@@ -482,8 +532,12 @@ function TeamPlayView({ codigo, onExit }) {
             </Card>
           )}
 
-          {tab === "pos" && <TablaPosiciones torneo={torneo} highlightId={unidadId} />}
-          {tab === "tabla" && <TarjetaHoyoPorHoyo torneo={torneo} />}
+          {tab === "pos" && (
+            <>
+              <TablaPosiciones torneo={torneo} highlightId={unidadId} />
+              <TarjetaHoyoPorHoyo torneo={torneo} />
+            </>
+          )}
         </div>
       )}
     </div>
@@ -499,19 +553,21 @@ export default function H19T() {
   const [torneoInput, setTorneoInput] = useState("");
   const [activeCodigo, setActiveCodigo] = useState(null);
   const [activeTorneoId, setActiveTorneoId] = useState(null);
+  const [activeVista, setActiveVista] = useState("todo");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const eq = params.get("equipo");
     const tr = params.get("torneo");
+    const vt = params.get("vista");
     if (eq) { setActiveCodigo(eq.toUpperCase()); setMode("team"); }
-    else if (tr) { setActiveTorneoId(tr); setMode("spectator"); }
+    else if (tr) { setActiveTorneoId(tr); if (vt) setActiveVista(vt); setMode("spectator"); }
     else setMode("home");
   }, []);
 
   if (mode === null) return <Spinner label="Cargando H19T..." />;
   if (mode === "team" && activeCodigo) return <TeamPlayView codigo={activeCodigo} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
-  if (mode === "spectator" && activeTorneoId) return <SpectatorTorneoView torneoId={activeTorneoId} />;
+  if (mode === "spectator" && activeTorneoId) return <SpectatorTorneoView torneoId={activeTorneoId} vistaInicial={activeVista} />;
 
   if (mode === "home") {
     return (
