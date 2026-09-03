@@ -156,9 +156,9 @@ function clasificacionOyes(torneo) {
   };
   if (modo === "hoyo") {
     const holes = (torneo.oyes?.holes || []).slice().sort((a,b)=>a-b);
-    return holes.map(h => ({ hole:h, ranking: mejorPorJugador(entradas.filter(e => e.holeFisico === h)) }));
+    return holes.map(h => { const propias = entradas.filter(e => e.holeFisico === h); return { hole:h, ranking: mejorPorJugador(propias), intentos: propias.length }; });
   }
-  return [{ hole:null, ranking: mejorPorJugador(entradas) }];
+  return [{ hole:null, ranking: mejorPorJugador(entradas), intentos: entradas.length }];
 }
 
 // Nombre de la unidad + nombres de los jugadores (si es un equipo de 2+)
@@ -424,7 +424,7 @@ function OyesLiveView({ torneo, big }) {
     <>
       {grupos.map((g, gi) => (
         <Card key={gi} style={big ? { padding:24 } : {}}>
-          <SLabel style={big ? { fontSize:16 } : {}}>🎯 {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados</span></SLabel>
+          <SLabel style={big ? { fontSize:16 } : {}}>🎯 {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total)</span></SLabel>
           <RankList ranking={g.ranking} showHole={g.hole===null} />
         </Card>
       ))}
