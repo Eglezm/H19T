@@ -210,6 +210,12 @@ function colorVsPar(n) {
   return n < 0 ? D.success : n > 0 ? D.danger : D.textSub;
 }
 
+// Formatea distancias de O'Yes: muestra hasta 2 decimales, sin ceros de más (18, 18.5, 18.25)
+function fmtCm(cm) {
+  const n = Math.round(cm * 100) / 100;
+  return Number.isInteger(n) ? String(n) : String(n).replace(/0+$/,"").replace(/\.$/,"");
+}
+
 function leaderboard(torneo) {
   if (!torneo || !torneo.unidades || !torneo.pares) return [];
   return Object.values(torneo.unidades)
@@ -409,7 +415,7 @@ function OyesLiveView({ torneo, big }) {
             <div style={{ fontSize:big?13:10, color:D.textSub }}>{e.unidadNombre}{showHole ? ` · Hoyo ${e.holeFisico}` : ""}</div>
           </div>
           {pos<premios && <div style={{ fontSize:big?16:11, marginRight:4 }}>🏆</div>}
-          <div style={{ fontSize:big?24:16, fontWeight:900, color:pos<premios?D.gold:D.text }}>{e.cm} <span style={{ fontSize:big?13:9, fontWeight:600, color:D.textSub }}>cm</span></div>
+          <div style={{ fontSize:big?24:16, fontWeight:900, color:pos<premios?D.gold:D.text }}>{fmtCm(e.cm)} <span style={{ fontSize:big?13:9, fontWeight:600, color:D.textSub }}>cm</span></div>
         </div>
       ))}
     </>
@@ -466,7 +472,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               {hayOyes && <option value="auto">🔄 Automático (Tarjeta ↔ O'Yes)</option>}
             </select>
           )}
-          <button onClick={() => setTvMode(v=>!v)} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
+          <button onClick={() => setTvMode(v => { const next = !v; if (next && hayOyes && vista==="todo") setVista("auto"); return next; })} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
             {tvMode ? "✕ Salir de pantalla completa" : "🖥️ Modo pantalla completa"}
           </button>
         </div>
@@ -704,13 +710,13 @@ function OyesRecordView({ torneoId, onExit }) {
   const entradas = Object.entries(torneo.oyesEntradas || {}).sort((a,b) => (b[1].ts||0)-(a[1].ts||0)).slice(0,15);
 
   const anotar = () => {
-    if (!jugadorId || !hole || !cm || parseInt(cm)<=0) return;
+    if (!jugadorId || !hole || !cm || parseFloat(cm)<=0) return;
     const jug = todosLosJugadores(torneo).find(j=>j.id===parseInt(jugadorId) || j.id===jugadorId);
     if (!jug) return;
     const id = `E${Date.now()}`;
     set(ref(db, `torneos/${torneoId}/oyesEntradas/${id}`), {
       jugadorId: jug.id, jugadorNombre: jug.name, unidadNombre: jug.unidadNombre,
-      holeFisico: parseInt(hole), cm: parseInt(cm), ts: Date.now(),
+      holeFisico: parseInt(hole), cm: Math.round(parseFloat(cm)*100)/100, ts: Date.now(),
     }).then(() => { setOkMsg(`✓ ${jug.name} — ${cm}cm en hoyo ${hole}`); setTimeout(()=>setOkMsg(""),2500); setCm(""); });
   };
 
@@ -746,7 +752,7 @@ function OyesRecordView({ torneoId, onExit }) {
             ))}
           </div>
           <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Distancia (centímetros)</div>
-          <input type="number" min="1" value={cm} onChange={e=>setCm(e.target.value)} placeholder="Ej. 245" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
+          <input type="number" min="0.01" step="0.01" value={cm} onChange={e=>setCm(e.target.value)} placeholder="Ej. 245 o 245.5" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
           <Btn onClick={anotar} disabled={!jugadorId||!hole||!cm}>🎯 Guardar anotación</Btn>
         </Card>
 
@@ -760,7 +766,7 @@ function OyesRecordView({ torneoId, onExit }) {
                 <div style={{ fontSize:12, fontWeight:600 }}>{e.jugadorNombre}</div>
                 <div style={{ fontSize:10, color:D.textSub }}>Hoyo {e.holeFisico} · {e.unidadNombre}</div>
               </div>
-              <div style={{ fontSize:14, fontWeight:900, color:D.gold, marginRight:6 }}>{e.cm} cm</div>
+              <div style={{ fontSize:14, fontWeight:900, color:D.gold, marginRight:6 }}>{fmtCm(e.cm)} cm</div>
               {confirmDeleteEntry===id ? (
                 <div style={{ display:"flex", gap:4 }}>
                   <button onClick={() => { remove(ref(db, `torneos/${torneoId}/oyesEntradas/${id}`)); setConfirmDeleteEntry(null); }} style={{ padding:"4px 8px", border:`1px solid ${D.danger}`, borderRadius:8, background:D.redBg, color:D.danger, fontSize:10, fontWeight:700, cursor:"pointer" }}>Sí</button>
