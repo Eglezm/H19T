@@ -690,6 +690,7 @@ function OyesRecordView({ torneoId, onExit }) {
   const [busqueda, setBusqueda] = useState("");
   const [confirmDeleteEntry, setConfirmDeleteEntry] = useState(null);
   const [okMsg, setOkMsg] = useState("");
+  const [sortBy, setSortBy] = useState("reciente");
 
   useEffect(() => {
     const r = ref(db, `torneos/${torneoId}`);
@@ -726,7 +727,12 @@ function OyesRecordView({ torneoId, onExit }) {
 
   const opcionesHoyo = opcionesHoyoOyes(torneo);
   const jugadores = todosLosJugadores(torneo).filter(j => j.name.toLowerCase().includes(busqueda.toLowerCase()));
-  const entradas = Object.entries(torneo.oyesEntradas || {}).sort((a,b) => (b[1].ts||0)-(a[1].ts||0)).slice(0,15);
+  const entradas = Object.entries(torneo.oyesEntradas || {}).sort((a,b) => {
+    if (sortBy==="distancia") return a[1].cm - b[1].cm;
+    if (sortBy==="jugador") return a[1].jugadorNombre.localeCompare(b[1].jugadorNombre) || a[1].cm - b[1].cm;
+    if (sortBy==="hoyo") return (a[1].holeJugado ?? a[1].holeFisico) - (b[1].holeJugado ?? b[1].holeFisico) || a[1].cm - b[1].cm;
+    return (b[1].ts||0)-(a[1].ts||0);
+  });
 
   const anotar = () => {
     if (!jugadorId || !hole || !cm || parseFloat(cm)<=0) return;
@@ -777,7 +783,18 @@ function OyesRecordView({ torneoId, onExit }) {
         </Card>
 
         <Card>
-          <SLabel>Últimas anotaciones</SLabel>
+          <SLabel>Todas las anotaciones ({entradas.length})</SLabel>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+            {[
+              {key:"reciente", label:"🕐 Reciente"},
+              {key:"distancia", label:"📏 Distancia"},
+              {key:"jugador", label:"👤 Jugador"},
+              {key:"hoyo", label:"⛳ Hoyo"},
+            ].map(o => (
+              <button key={o.key} onClick={() => setSortBy(o.key)} style={{ padding:"6px 12px", border:`1px solid ${sortBy===o.key?D.gold:D.border}`, borderRadius:20, background:sortBy===o.key?D.goldDim:"transparent", color:sortBy===o.key?D.gold:D.textSub, fontSize:12, fontWeight:700, cursor:"pointer" }}>{o.label}</button>
+            ))}
+          </div>
+          <div style={{ maxHeight:420, overflowY:"auto" }}>
           {entradas.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:12, fontSize:13 }}>Aún no hay anotaciones</div>}
           {entradas.map(([id, e]) => (
             <div key={id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 0", borderBottom:`1px solid ${D.border}` }}>
@@ -797,6 +814,7 @@ function OyesRecordView({ torneoId, onExit }) {
               )}
             </div>
           ))}
+          </div>
         </Card>
       </div>
     </div>
