@@ -125,11 +125,30 @@ function genPassword() {
 
 // Lista de "hoyos físicos" disponibles para O'Yes. En campos de 9 hoyos jugados dos
 // veces, el hoyo 1 y el hoyo 10 son el mismo hoyo físico, así que se combinan en una
-// sola opción (se muestra como "Hoyo 1"), y el sistema toma en cuenta ambas vueltas.
+// sola opción para el premio (aunque se anoten por separado como Hoyo 1 y Hoyo 10).
 function hoyosFisicos(torneo) {
   const esNueve = CAMPOS[torneo.campo]?.nueveHoyos && torneo.pares.length === 18;
   const n = esNueve ? 9 : torneo.pares.length;
   return Array.from({length:n}, (_,i) => i+1);
+}
+
+// El hoyo "físico" (para el premio combinado) a partir del hoyo tal como se juega en campo (1-18)
+function hoyoFisicoDesdeJugado(torneo, hoyoJugado) {
+  const esNueve = CAMPOS[torneo.campo]?.nueveHoyos && torneo.pares.length === 18;
+  if (!esNueve) return hoyoJugado;
+  return ((hoyoJugado - 1) % 9) + 1;
+}
+
+// Opciones de hoyo que ve quien anota O'Yes: en campos de 9 hoyos jugados dos veces,
+// cada hoyo físico con premio genera 2 opciones (ej. Hoyo 1 y Hoyo 10), tal como
+// aparecen en el campo — sin necesidad de indicar de qué tee salieron.
+function opcionesHoyoOyes(torneo) {
+  const esNueve = CAMPOS[torneo.campo]?.nueveHoyos && torneo.pares.length === 18;
+  const holes = (torneo.oyes?.holes || []).slice().sort((a,b)=>a-b);
+  if (!esNueve) return holes.map(h => ({ jugado:h, label:`Hoyo ${h}` }));
+  const opts = [];
+  holes.forEach(h => { opts.push({ jugado:h, label:`Hoyo ${h}` }); opts.push({ jugado:h+9, label:`Hoyo ${h+9}` }); });
+  return opts.sort((a,b) => a.jugado - b.jugado);
 }
 
 // Todos los jugadores participantes en el torneo (de todas las unidades), con referencia a su unidad
@@ -671,6 +690,7 @@ function OyesRecordView({ torneoId, onExit }) {
   const [busqueda, setBusqueda] = useState("");
   const [confirmDeleteEntry, setConfirmDeleteEntry] = useState(null);
   const [okMsg, setOkMsg] = useState("");
+  const [sortBy, setSortBy] = useState("reciente");
 
   useEffect(() => {
     const r = ref(db, `torneos/${torneoId}`);
@@ -705,9 +725,14 @@ function OyesRecordView({ torneoId, onExit }) {
     );
   }
 
-  const holes = torneo.oyes.holes || [];
+  const opcionesHoyo = opcionesHoyoOyes(torneo);
   const jugadores = todosLosJugadores(torneo).filter(j => j.name.toLowerCase().includes(busqueda.toLowerCase()));
-  const entradas = Object.entries(torneo.oyesEntradas || {}).sort((a,b) => (b[1].ts||0)-(a[1].ts||0)).slice(0,15);
+  const entradas = Object.entries(torneo.oyesEntradas || {}).sort((a,b) => {
+    if (sortBy==="distancia") return a[1].cm - b[1].cm;
+    if (sortBy==="jugador") return a[1].jugadorNombre.localeCompare(b[1].jugadorNombre) || a[1].cm - b[1].cm;
+    if (sortBy==="hoyo") return (a[1].holeJugado ?? a[1].holeFisico) - (b[1].holeJugado ?? b[1].holeFisico) || a[1].cm - b[1].cm;
+    return (b[1].ts||0)-(a[1].ts||0);
+  });
 
   const anotar = () => {
     if (!jugadorId || !hole || !cm || parseFloat(cm)<=0) return;
@@ -716,7 +741,8 @@ function OyesRecordView({ torneoId, onExit }) {
     const id = `E${Date.now()}`;
     set(ref(db, `torneos/${torneoId}/oyesEntradas/${id}`), {
       jugadorId: jug.id, jugadorNombre: jug.name, unidadNombre: jug.unidadNombre,
-      holeFisico: parseInt(hole), cm: Math.round(parseFloat(cm)*100)/100, ts: Date.now(),
+      holeFisico: hoyoFisicoDesdeJugado(torneo, parseInt(hole)), holeJugado: parseInt(hole),
+      cm: Math.round(parseFloat(cm)*100)/100, ts: Date.now(),
     }).then(() => { setOkMsg(`✓ ${jug.name} — ${cm}cm en hoyo ${hole}`); setTimeout(()=>setOkMsg(""),2500); setCm(""); });
   };
 
@@ -747,8 +773,8 @@ function OyesRecordView({ torneoId, onExit }) {
           </div>
           <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Hoyo</div>
           <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:12 }}>
-            {holes.map(h => (
-              <button key={h} onClick={() => setHole(String(h))} style={{ padding:"8px 14px", border:`1px solid ${String(hole)===String(h)?D.gold:D.border}`, borderRadius:10, background:String(hole)===String(h)?D.goldDim:"transparent", color:String(hole)===String(h)?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>Hoyo {h}</button>
+            {opcionesHoyo.map(opt => (
+              <button key={opt.jugado} onClick={() => setHole(String(opt.jugado))} style={{ padding:"8px 14px", border:`1px solid ${String(hole)===String(opt.jugado)?D.gold:D.border}`, borderRadius:10, background:String(hole)===String(opt.jugado)?D.goldDim:"transparent", color:String(hole)===String(opt.jugado)?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>{opt.label}</button>
             ))}
           </div>
           <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Distancia (centímetros)</div>
@@ -757,14 +783,25 @@ function OyesRecordView({ torneoId, onExit }) {
         </Card>
 
         <Card>
-          <SLabel>Últimas anotaciones</SLabel>
+          <SLabel>Todas las anotaciones ({entradas.length})</SLabel>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+            {[
+              {key:"reciente", label:"🕐 Reciente"},
+              {key:"distancia", label:"📏 Distancia"},
+              {key:"jugador", label:"👤 Jugador"},
+              {key:"hoyo", label:"⛳ Hoyo"},
+            ].map(o => (
+              <button key={o.key} onClick={() => setSortBy(o.key)} style={{ padding:"6px 12px", border:`1px solid ${sortBy===o.key?D.gold:D.border}`, borderRadius:20, background:sortBy===o.key?D.goldDim:"transparent", color:sortBy===o.key?D.gold:D.textSub, fontSize:12, fontWeight:700, cursor:"pointer" }}>{o.label}</button>
+            ))}
+          </div>
+          <div style={{ maxHeight:420, overflowY:"auto" }}>
           {entradas.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:12, fontSize:13 }}>Aún no hay anotaciones</div>}
           {entradas.map(([id, e]) => (
             <div key={id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 0", borderBottom:`1px solid ${D.border}` }}>
               <Avatar name={e.jugadorNombre} id={e.jugadorId} size={26} />
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:12, fontWeight:600 }}>{e.jugadorNombre}</div>
-                <div style={{ fontSize:10, color:D.textSub }}>Hoyo {e.holeFisico} · {e.unidadNombre}</div>
+                <div style={{ fontSize:10, color:D.textSub }}>Hoyo {e.holeJugado ?? e.holeFisico} · {e.unidadNombre}</div>
               </div>
               <div style={{ fontSize:14, fontWeight:900, color:D.gold, marginRight:6 }}>{fmtCm(e.cm)} cm</div>
               {confirmDeleteEntry===id ? (
@@ -777,6 +814,7 @@ function OyesRecordView({ torneoId, onExit }) {
               )}
             </div>
           ))}
+          </div>
         </Card>
       </div>
     </div>
