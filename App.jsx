@@ -39,12 +39,23 @@ const MODALIDADES = {
 };
 
 const D = {
-  bg: "#F5F0E8", surface: "#FFFFFF", card: "#FFFFFF", border: "#DDD5C0",
-  gold: "#9A6F00", goldLight: "#C49A00", goldDim: "#FDF3D0",
-  text: "#1A1A1A", textSub: "#6B6150", textDim: "#B0A690",
+  bg: "#F6F1E6", surface: "#FFFFFF", card: "#FFFFFF", border: "#DFD6C3",
+  gold: "#8A6412", goldLight: "#B98F1F", goldDim: "#FBF1D4",
+  text: "#211C13", textSub: "#6B6150", textDim: "#AFA48D",
   green: "#1B5E20", greenBg: "#E8F5E9", red: "#B71C1C", redBg: "#FFEBEE",
-  success: "#2E7D32", danger: "#C62828",
+  success: "#2E6B31", danger: "#B23A2E",
 };
+
+// Serif con carácter de club de golf, reservada para el wordmark, títulos de torneo y
+// números protagonistas. El resto de la interfaz (datos, tablas, botones) usa la sans
+// del sistema, que se lee mejor en tamaños chicos sobre celular.
+const FONT_SERIF = "'Fraunces', Georgia, serif";
+const FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const SHADOW_CARD = "0 1px 2px rgba(58,42,10,0.05), 0 6px 20px rgba(58,42,10,0.06)";
+const SHADOW_BTN = "0 2px 8px rgba(138,100,18,0.28)";
+D.bogey = "#8C5A16";
+D.doble = D.danger;
+D.triple = "#7A2A22";
 
 const COLORS = [
   {bg:"#D6E4F7",fg:"#1A4A8A"},{bg:"#D4EDD8",fg:"#1A5C24"},
@@ -65,9 +76,9 @@ function getBadge(s, par) {
   if (d <= -2) return { label:"Eagle",  bg:"#D6E4F7", fg:"#1A4A8A" };
   if (d === -1) return { label:"Birdie", bg:"#D4EDD8", fg:"#1A5C24" };
   if (d === 0)  return { label:"Par",    bg:"#EEE8DC", fg:"#6B6150" };
-  if (d === 1)  return { label:"Bogey",  bg:"#FFF0D4", fg:"#8A4A00" };
-  if (d === 2)  return { label:"Doble",  bg:"#FFE0D4", fg:"#8A2A00" };
-  return { label:"+"+d, bg:"#FFDBDB", fg:"#C62828" };
+  if (d === 1)  return { label:"Bogey",  bg:"#FFF0D4", fg:D.bogey };
+  if (d === 2)  return { label:"Doble",  bg:"#FBE4E0", fg:D.doble };
+  return { label:"+"+d, bg:"#F7DAD6", fg:D.triple };
 }
 
 // Notación tradicional de golf para la tarjeta: par = número solo, birdie = círculo,
@@ -90,15 +101,15 @@ function ScoreCell({ s, par, big }) {
       <span style={{ ...wrapSt(inner, "50%", D.gold), ...numSt, color:D.gold }}>{s}</span>
     </span>
   );
-  if (d === 1) return <span style={{ ...wrapSt(outer, 3, "#8A4A00"), ...numSt, color:"#8A4A00" }}>{s}</span>; // bogey
+  if (d === 1) return <span style={{ ...wrapSt(outer, 3, D.bogey), ...numSt, color:D.bogey }}>{s}</span>; // bogey
   if (d === 2) return ( // doble bogey
-    <span style={wrapSt(outer+5, 4, "#C62828")}>
-      <span style={{ ...wrapSt(inner, 2, "#C62828"), ...numSt, color:"#C62828" }}>{s}</span>
+    <span style={wrapSt(outer+5, 4, D.doble)}>
+      <span style={{ ...wrapSt(inner, 2, D.doble), ...numSt, color:D.doble }}>{s}</span>
     </span>
   );
   return ( // triple bogey o peor
-    <span style={wrapSt(outer+5, 4, "#6B1414")}>
-      <span style={{ ...wrapSt(inner, 2, "#6B1414"), ...numSt, color:"#6B1414" }}>{s}</span>
+    <span style={wrapSt(outer+5, 4, D.triple)}>
+      <span style={{ ...wrapSt(inner, 2, D.triple), ...numSt, color:D.triple }}>{s}</span>
     </span>
   );
 }
@@ -246,7 +257,7 @@ function leaderboard(torneo) {
 function Avatar({ name, id, size = 32 }) {
   const c = col(id);
   return (
-    <div style={{ width:size, height:size, borderRadius:"50%", background:c.bg, color:c.fg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*0.34, fontWeight:700, flexShrink:0, border:`1px solid ${c.fg}33` }}>
+    <div style={{ width:size, height:size, borderRadius:"50%", background:c.bg, color:c.fg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*0.34, fontWeight:700, flexShrink:0, boxShadow:`inset 0 0 0 1.5px ${c.fg}2E` }}>
       {name.substring(0,2).toUpperCase()}
     </div>
   );
@@ -254,19 +265,32 @@ function Avatar({ name, id, size = 32 }) {
 
 function Card({ children, style = {}, className }) {
   return (
-    <div className={className} style={{ background:D.card, border:`1px solid ${D.border}`, borderRadius:16, padding:16, marginBottom:12, ...style }}>
+    <div className={className} style={{ background:D.card, border:`1px solid ${D.border}`, borderRadius:14, padding:16, marginBottom:12, boxShadow:SHADOW_CARD, ...style }}>
       {children}
     </div>
   );
 }
 
+// Etiqueta de sección: una barra de acento en vez del típico eyebrow en MAYÚSCULAS
 function SLabel({ children, style = {} }) {
-  return <div style={{ fontSize:10, fontWeight:700, color:D.gold, textTransform:"uppercase", letterSpacing:2, marginBottom:10, ...style }}>{children}</div>;
+  const { fontSize, ...wrapStyle } = style;
+  const fs = fontSize || 12.5;
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:11, ...wrapStyle }}>
+      <span style={{ width:3, height:fs*1.05, borderRadius:2, background:D.gold, flexShrink:0 }} />
+      <span style={{ fontSize:fs, fontWeight:700, color:D.text }}>{children}</span>
+    </div>
+  );
 }
 
 function Btn({ children, onClick, disabled, outline, danger, style = {} }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ width:"100%", padding:14, border:outline ? `1px solid ${danger?D.danger:D.gold}` : "none", borderRadius:12, fontSize:15, fontWeight:700, cursor:disabled?"default":"pointer", marginTop:6, background:outline ? "transparent" : danger ? D.danger : `linear-gradient(135deg,${D.gold},${D.goldLight})`, color:outline ? (danger?D.danger:D.gold) : "#FFFFFF", opacity:disabled?0.4:1, ...style }}>
+    <button
+      onClick={onClick} disabled={disabled}
+      onMouseDown={e => { if (!disabled) e.currentTarget.style.transform = "scale(0.985)"; }}
+      onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+      style={{ width:"100%", padding:14, border:outline ? `1.5px solid ${danger?D.danger:D.gold}` : "none", borderRadius:12, fontSize:15, fontWeight:700, cursor:disabled?"default":"pointer", marginTop:6, background:outline ? "transparent" : danger ? D.danger : `linear-gradient(155deg,${D.goldLight},${D.gold})`, color:outline ? (danger?D.danger:D.gold) : "#FFFDF7", opacity:disabled?0.4:1, boxShadow:(!outline && !disabled) ? SHADOW_BTN : "none", transition:"transform 0.1s ease", ...style }}>
       {children}
     </button>
   );
@@ -276,7 +300,7 @@ function TabBar({ tabs, active, onChange }) {
   return (
     <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
       {tabs.map(t => (
-        <button key={t.key} onClick={() => onChange(t.key)} style={{ flex:"1 1 auto", padding:"9px 4px", border:`1px solid ${active===t.key?D.gold:D.border}`, borderRadius:10, background:active===t.key?D.goldDim:D.surface, color:active===t.key?D.gold:D.textSub, fontSize:11, fontWeight:700, cursor:"pointer" }}>
+        <button key={t.key} onClick={() => onChange(t.key)} style={{ flex:"1 1 auto", padding:"9px 4px", border:`1.5px solid ${active===t.key?D.gold:"transparent"}`, borderRadius:20, background:active===t.key?D.goldDim:D.surface, color:active===t.key?D.gold:D.textSub, fontSize:11, fontWeight:700, cursor:"pointer", boxShadow:active===t.key?"none":"0 1px 2px rgba(58,42,10,0.05)" }}>
           {t.label}
         </button>
       ))}
@@ -286,13 +310,13 @@ function TabBar({ tabs, active, onChange }) {
 
 function Pill({ active, danger, onClick, children }) {
   return (
-    <div onClick={onClick} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", border:`1px solid ${active?D.gold:danger?D.danger:D.border}`, borderRadius:20, background:active?D.goldDim:"transparent", color:active?D.gold:danger?D.danger:D.textSub, fontSize:13, fontWeight:600, cursor:"pointer", userSelect:"none" }}>
+    <div onClick={onClick} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", border:`1.5px solid ${active?D.gold:danger?D.danger:D.border}`, borderRadius:20, background:active?D.goldDim:"transparent", color:active?D.gold:danger?D.danger:D.textSub, fontSize:13, fontWeight:600, cursor:"pointer", userSelect:"none" }}>
       {children}
     </div>
   );
 }
 
-const appStyle = { fontSize:14, fontFamily:"-apple-system,sans-serif", color:D.text, background:D.bg, minHeight:"100vh", maxWidth:420, margin:"0 auto" };
+const appStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:D.bg, minHeight:"100vh", maxWidth:420, margin:"0 auto" };
 
 function Spinner({ label }) {
   return (
@@ -475,7 +499,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
 
   const campoNombre = CAMPOS[torneo.campo]?.nombre || torneo.campo;
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
-  const tvStyle = { fontSize:14, fontFamily:"-apple-system,sans-serif", color:D.text, background:D.bg, minHeight:"100vh", width:"100%", margin:"0 auto" };
+  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:D.bg, minHeight:"100vh", width:"100%", margin:"0 auto" };
   const hayOyes = torneo.oyes?.holes?.length>0;
 
   return (
@@ -495,7 +519,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             {tvMode ? "✕ Salir de pantalla completa" : "🖥️ Modo pantalla completa"}
           </button>
         </div>
-        <div style={{ fontSize:tvMode?54:30, fontWeight:900, color:D.gold }}>H19T</div>
+        <div style={{ fontFamily:FONT_SERIF, fontSize:tvMode?58:32, fontWeight:700, color:D.gold }}>H19T</div>
         <div style={{ fontSize:tvMode?26:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
         <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
         <div style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"6px 18px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.goldDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.gold}`, borderRadius:20 }}>
@@ -599,7 +623,7 @@ function TeamPlayView({ codigo, onExit }) {
     <div style={appStyle}>
       <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontSize:22, fontWeight:900, color:D.gold }}>H19T</div>
+          <div style={{ fontFamily:FONT_SERIF, fontSize:23, fontWeight:700, color:D.gold }}>H19T</div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre} · {campoNombre}</div>
@@ -713,7 +737,7 @@ function OyesRecordView({ torneoId, onExit }) {
   if (!autenticado) {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontSize:40, fontWeight:900, color:D.gold }}>🎯 O'Yes</div>
+        <div style={{ fontFamily:FONT_SERIF, fontSize:40, fontWeight:700, color:D.gold }}>🎯 O'Yes</div>
         <div style={{ fontSize:14, color:D.textSub, marginBottom:4, textAlign:"center" }}>{torneo.nombre}</div>
         <div style={{ fontSize:13, color:D.textSub, marginBottom:8 }}>Ingresa la contraseña de anotación</div>
         <input type="password" value={passInput} onChange={e=>setPassInput(e.target.value)} placeholder="Contraseña" maxLength={8}
@@ -750,7 +774,7 @@ function OyesRecordView({ torneoId, onExit }) {
     <div style={appStyle}>
       <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontSize:20, fontWeight:900, color:D.gold }}>🎯 Anotar O'Yes</div>
+          <div style={{ fontFamily:FONT_SERIF, fontSize:21, fontWeight:700, color:D.gold }}>🎯 Anotar O'Yes</div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre}</div>
@@ -851,7 +875,7 @@ export default function H19T() {
   if (mode === "home") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:16 }}>
-        <div style={{ fontSize:64, fontWeight:900, letterSpacing:-3, color:D.gold, textAlign:"center" }}>H19T</div>
+        <div style={{ fontFamily:FONT_SERIF, fontSize:68, fontWeight:700, letterSpacing:-2, color:D.gold, textAlign:"center" }}>H19T</div>
         <div style={{ fontSize:12, color:D.textSub, letterSpacing:3, textTransform:"uppercase", marginBottom:16 }}>Club de Golf</div>
         <Btn onClick={() => setMode("pin")}>🏌️ Entrar como Admin</Btn>
         <Btn outline onClick={() => setMode("codigo-input")}>🃏 Tengo un código de equipo</Btn>
@@ -863,7 +887,7 @@ export default function H19T() {
   if (mode === "pin") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontSize:36, fontWeight:900, color:D.gold, textAlign:"center" }}>H19T</div>
+        <div style={{ fontFamily:FONT_SERIF, fontSize:38, fontWeight:700, color:D.gold, textAlign:"center" }}>H19T</div>
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8 }}>Ingresa tu PIN de administrador</div>
         <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)} placeholder="PIN" maxLength={6}
           style={{ width:"100%", padding:14, border:`1px solid ${pinError?D.danger:D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:22, textAlign:"center", letterSpacing:8, fontWeight:700 }} />
@@ -877,7 +901,7 @@ export default function H19T() {
   if (mode === "codigo-input") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontSize:36, fontWeight:900, color:D.gold }}>H19T</div>
+        <div style={{ fontFamily:FONT_SERIF, fontSize:38, fontWeight:700, color:D.gold }}>H19T</div>
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8, textAlign:"center" }}>Ingresa el código de tu equipo</div>
         <input value={codigoInput} onChange={e => setCodigoInput(e.target.value.toUpperCase())} placeholder="Código" maxLength={8}
           style={{ width:"100%", padding:14, border:`1px solid ${D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700 }} />
@@ -890,7 +914,7 @@ export default function H19T() {
   if (mode === "torneo-input") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontSize:36, fontWeight:900, color:D.gold }}>H19T</div>
+        <div style={{ fontFamily:FONT_SERIF, fontSize:38, fontWeight:700, color:D.gold }}>H19T</div>
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8, textAlign:"center" }}>Ingresa el código del torneo</div>
         <input value={torneoInput} onChange={e => setTorneoInput(e.target.value.toUpperCase())} placeholder="Código de torneo" maxLength={8}
           style={{ width:"100%", padding:14, border:`1px solid ${D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700 }} />
@@ -1227,16 +1251,16 @@ function AdminTorneoApp({ onExit }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
-  const appSt = { fontSize:14, fontFamily:"-apple-system,sans-serif", color:D.text, background:D.bg, minHeight:"100vh", maxWidth:420, margin:"0 auto", paddingBottom:32 };
+  const appSt = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:D.bg, minHeight:"100vh", maxWidth:420, margin:"0 auto", paddingBottom:32 };
   const tog = (a) => ({ flex:1, padding:9, border:`1px solid ${a?D.gold:D.border}`, borderRadius:10, background:a?D.goldDim:"transparent", color:a?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" });
 
   const Header = ({ title }) => (
     <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"20px 16px 14px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ fontSize:24, fontWeight:900, color:D.gold }}>H19T</div>
+        <div style={{ fontFamily:FONT_SERIF, fontSize:25, fontWeight:700, color:D.gold }}>H19T</div>
         <button onClick={onExit} style={{ fontSize:12, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
       </div>
-      {title && <div style={{ fontSize:11, color:D.textSub, letterSpacing:2, textTransform:"uppercase", marginTop:2 }}>{title}</div>}
+      {title && <div style={{ fontSize:12.5, color:D.textSub, marginTop:3 }}>{title}</div>}
     </div>
   );
 
