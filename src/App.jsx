@@ -1,6 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, remove, get } from "firebase/database";
+import {
+  Target, Trophy, Check, Flag, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pencil, User, Users,
+  Printer, Link2, X, Trash2, Star, ArrowLeftRight, RefreshCw, Eye, MessageCircle,
+  Monitor, Ban, Clock, Ruler, Layers, Sparkles, ClipboardList, AlertTriangle,
+  Undo2, KeyRound, Tv, Share2, LogOut, Plus, Minus, MapPin, ListChecks,
+} from "lucide-react";
 
 // ─── FIREBASE ──────────────────────────────────────
 // Usa el mismo proyecto de Firebase que H19 Golf (misma cuenta), pero TODOS
@@ -39,30 +45,35 @@ const MODALIDADES = {
 };
 
 const D = {
-  bg: "#F6F1E6", surface: "#FFFFFF", card: "#FFFFFF", border: "#DFD6C3",
-  gold: "#8A6412", goldLight: "#B98F1F", goldDim: "#FBF1D4",
-  text: "#211C13", textSub: "#6B6150", textDim: "#AFA48D",
-  green: "#1B5E20", greenBg: "#E8F5E9", red: "#B71C1C", redBg: "#FFEBEE",
-  success: "#2E6B31", danger: "#B23A2E",
+  bg: "#0A0E14", surface: "#12161F", card: "rgba(24,29,41,0.72)", border: "rgba(255,255,255,0.09)",
+  gold: "#8FE23E", goldLight: "#B6FF6E", goldDim: "rgba(143,226,62,0.14)",
+  text: "#F3F5F8", textSub: "#9AA3B2", textDim: "#5B6474",
+  green: "#3DDC84", greenBg: "rgba(61,220,132,0.14)", red: "#FF5470", redBg: "rgba(255,84,112,0.14)",
+  success: "#3DDC84", danger: "#FF5470",
 };
 
 // Serif con carácter de club de golf, reservada para el wordmark, títulos de torneo y
 // números protagonistas. El resto de la interfaz (datos, tablas, botones) usa la sans
 // del sistema, que se lee mejor en tamaños chicos sobre celular.
-const FONT_SERIF = "'Fraunces', Georgia, serif";
+const FONT_DISPLAY = "'Space Grotesk', -apple-system, sans-serif";
 const FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-const SHADOW_CARD = "0 1px 2px rgba(58,42,10,0.05), 0 6px 20px rgba(58,42,10,0.06)";
-const SHADOW_BTN = "0 2px 8px rgba(138,100,18,0.28)";
-D.bogey = "#8C5A16";
+const SHADOW_CARD = "0 1px 0 rgba(255,255,255,0.05) inset, 0 12px 32px rgba(0,0,0,0.45)";
+const SHADOW_BTN = "0 6px 20px rgba(143,226,62,0.25)";
+const GLASS_BLUR = "blur(18px) saturate(140%)";
+// Gradientes vibrantes y orgánicos: lima→azul eléctrico (acción/positivo) y púrpura→verde (destacado)
+const GRAD_PRIMARY = "linear-gradient(135deg, #8FE23E 0%, #2FD9C4 55%, #2E9BFF 100%)";
+const GRAD_ACCENT  = "linear-gradient(135deg, #A855F7 0%, #3DDC84 100%)";
+const GRAD_TEXT_STYLE = { background:GRAD_PRIMARY, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" };
+D.bogey = "#FFB020";
 D.doble = D.danger;
-D.triple = "#7A2A22";
+D.triple = "#FF2D55";
 
 const COLORS = [
-  {bg:"#D6E4F7",fg:"#1A4A8A"},{bg:"#D4EDD8",fg:"#1A5C24"},
-  {bg:"#F7E6D4",fg:"#8A3A0A"},{bg:"#F7D4E6",fg:"#8A0A40"},
-  {bg:"#E4D4F7",fg:"#4A1A8A"},{bg:"#F7D4F0",fg:"#8A1A7A"},
-  {bg:"#D4F0E8",fg:"#0A5A3A"},{bg:"#F7EDD4",fg:"#7A5000"},
-  {bg:"#D4D8F7",fg:"#1A1A8A"},{bg:"#F7D8D4",fg:"#8A1A14"},
+  {bg:"rgba(46,155,255,0.18)",fg:"#6FB8FF"},{bg:"rgba(61,220,132,0.18)",fg:"#5EEBA3"},
+  {bg:"rgba(255,176,32,0.18)",fg:"#FFC85C"},{bg:"rgba(255,84,112,0.18)",fg:"#FF8CA1"},
+  {bg:"rgba(168,85,247,0.18)",fg:"#C68CFB"},{bg:"rgba(255,45,200,0.16)",fg:"#FF7FDA"},
+  {bg:"rgba(47,217,196,0.18)",fg:"#7BEFDF"},{bg:"rgba(143,226,62,0.18)",fg:"#B6FF6E"},
+  {bg:"rgba(90,120,255,0.18)",fg:"#A6B8FF"},{bg:"rgba(255,120,60,0.18)",fg:"#FFAC85"},
 ];
 
 const col = (id) => {
@@ -73,12 +84,12 @@ const col = (id) => {
 function getBadge(s, par) {
   if (s === null || s === undefined || !par) return null;
   const d = s - par;
-  if (d <= -2) return { label:"Eagle",  bg:"#D6E4F7", fg:"#1A4A8A" };
-  if (d === -1) return { label:"Birdie", bg:"#D4EDD8", fg:"#1A5C24" };
-  if (d === 0)  return { label:"Par",    bg:"#EEE8DC", fg:"#6B6150" };
-  if (d === 1)  return { label:"Bogey",  bg:"#FFF0D4", fg:D.bogey };
-  if (d === 2)  return { label:"Doble",  bg:"#FBE4E0", fg:D.doble };
-  return { label:"+"+d, bg:"#F7DAD6", fg:D.triple };
+  if (d <= -2) return { label:"Eagle",  bg:"rgba(46,155,255,0.16)", fg:"#6FB8FF" };
+  if (d === -1) return { label:"Birdie", bg:"rgba(61,220,132,0.16)", fg:D.success };
+  if (d === 0)  return { label:"Par",    bg:"rgba(255,255,255,0.06)", fg:D.textSub };
+  if (d === 1)  return { label:"Bogey",  bg:"rgba(255,176,32,0.16)", fg:D.bogey };
+  if (d === 2)  return { label:"Doble",  bg:"rgba(255,84,112,0.16)", fg:D.doble };
+  return { label:"+"+d, bg:"rgba(255,45,85,0.18)", fg:D.triple };
 }
 
 // Notación tradicional de golf para la tarjeta: par = número solo, birdie = círculo,
@@ -120,8 +131,8 @@ function teeColor(campo, holeIndex) {
   return holeIndex < 9 ? "Blancas" : "Azules";
 }
 function teeStyle(tee) {
-  if (tee === "Blancas") return { bg:"#F1F1EC", fg:"#6B6150", border:"#D8D5C8" };
-  if (tee === "Azules") return { bg:"#DCEEFB", fg:"#15628C", border:"#B9DDF2" };
+  if (tee === "Blancas") return { bg:"rgba(255,255,255,0.07)", fg:D.textSub, border:"rgba(255,255,255,0.14)" };
+  if (tee === "Azules") return { bg:"rgba(46,155,255,0.14)", fg:"#6FB8FF", border:"rgba(46,155,255,0.3)" };
   return null;
 }
 function genCodigo(usados) {
@@ -254,10 +265,35 @@ function leaderboard(torneo) {
 }
 
 // ─── UI PRIMITIVAS (mismo lenguaje visual que H19 Golf) ──
+// Número animado: hace count-up desde el valor anterior hasta el nuevo cada vez que cambia
+function CountUp({ value, duration = 650, decimals = 0, style = {} }) {
+  const [display, setDisplay] = useState(value || 0);
+  const prevRef = useRef(value || 0);
+  useEffect(() => {
+    const from = prevRef.current;
+    const to = value || 0;
+    if (from === to) { setDisplay(to); return; }
+    const start = performance.now();
+    let raf;
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const cur = from + (to - from) * eased;
+      setDisplay(cur);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else { prevRef.current = to; setDisplay(to); }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => raf && cancelAnimationFrame(raf);
+  }, [value, duration]);
+  const shown = decimals > 0 ? display.toFixed(decimals) : Math.round(display);
+  return <span style={style}>{shown}</span>;
+}
+
 function Avatar({ name, id, size = 32 }) {
   const c = col(id);
   return (
-    <div style={{ width:size, height:size, borderRadius:"50%", background:c.bg, color:c.fg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*0.34, fontWeight:700, flexShrink:0, boxShadow:`inset 0 0 0 1.5px ${c.fg}2E` }}>
+    <div style={{ width:size, height:size, borderRadius:"50%", background:c.bg, color:c.fg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*0.34, fontWeight:700, flexShrink:0, boxShadow:`inset 0 0 0 1.5px ${c.fg}44` }}>
       {name.substring(0,2).toUpperCase()}
     </div>
   );
@@ -265,20 +301,20 @@ function Avatar({ name, id, size = 32 }) {
 
 function Card({ children, style = {}, className }) {
   return (
-    <div className={className} style={{ background:D.card, border:`1px solid ${D.border}`, borderRadius:14, padding:16, marginBottom:12, boxShadow:SHADOW_CARD, ...style }}>
+    <div className={`h19-card ${className||""}`} style={{ background:D.card, backdropFilter:GLASS_BLUR, WebkitBackdropFilter:GLASS_BLUR, border:`1px solid ${D.border}`, borderRadius:16, padding:16, marginBottom:12, boxShadow:SHADOW_CARD, ...style }}>
       {children}
     </div>
   );
 }
 
-// Etiqueta de sección: una barra de acento en vez del típico eyebrow en MAYÚSCULAS
+// Etiqueta de sección: una barra de acento en degradado en vez del típico eyebrow en MAYÚSCULAS
 function SLabel({ children, style = {} }) {
   const { fontSize, ...wrapStyle } = style;
   const fs = fontSize || 12.5;
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:11, ...wrapStyle }}>
-      <span style={{ width:3, height:fs*1.05, borderRadius:2, background:D.gold, flexShrink:0 }} />
-      <span style={{ fontSize:fs, fontWeight:700, color:D.text }}>{children}</span>
+      <span style={{ width:3, height:fs*1.05, borderRadius:2, background:GRAD_PRIMARY, flexShrink:0 }} />
+      <span style={{ fontSize:fs, fontWeight:700, color:D.text, display:"flex", alignItems:"center", gap:6 }}>{children}</span>
     </div>
   );
 }
@@ -286,22 +322,34 @@ function SLabel({ children, style = {} }) {
 function Btn({ children, onClick, disabled, outline, danger, style = {} }) {
   return (
     <button
-      onClick={onClick} disabled={disabled}
-      onMouseDown={e => { if (!disabled) e.currentTarget.style.transform = "scale(0.985)"; }}
-      onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-      style={{ width:"100%", padding:14, border:outline ? `1.5px solid ${danger?D.danger:D.gold}` : "none", borderRadius:12, fontSize:15, fontWeight:700, cursor:disabled?"default":"pointer", marginTop:6, background:outline ? "transparent" : danger ? D.danger : `linear-gradient(155deg,${D.goldLight},${D.gold})`, color:outline ? (danger?D.danger:D.gold) : "#FFFDF7", opacity:disabled?0.4:1, boxShadow:(!outline && !disabled) ? SHADOW_BTN : "none", transition:"transform 0.1s ease", ...style }}>
+      onClick={onClick} disabled={disabled} className="h19-btn"
+      style={{ width:"100%", padding:14, border:outline ? `1.5px solid ${danger?D.danger:D.gold}` : "none", borderRadius:14, fontSize:15, fontWeight:700, cursor:disabled?"default":"pointer", marginTop:6, background:outline ? "transparent" : danger ? D.danger : GRAD_PRIMARY, color:outline ? (danger?D.danger:D.gold) : "#0A0E14", opacity:disabled?0.4:1, boxShadow:(!outline && !disabled) ? SHADOW_BTN : "none", display:"flex", alignItems:"center", justifyContent:"center", gap:8, ...style }}>
       {children}
     </button>
   );
 }
 
 function TabBar({ tabs, active, onChange }) {
+  const containerRef = useRef(null);
+  const btnRefs = useRef({});
+  const [ind, setInd] = useState({ left:0, top:0, width:0, height:0, ready:false });
+
+  useEffect(() => {
+    const el = btnRefs.current[active];
+    const container = containerRef.current;
+    if (el && container) {
+      const cRect = container.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      setInd({ left:r.left-cRect.left, top:r.top-cRect.top, width:r.width, height:r.height, ready:true });
+    }
+  }, [active, tabs.length]);
+
   return (
-    <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+    <div ref={containerRef} style={{ position:"relative", display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+      <div className="h19-tab-indicator" style={{ position:"absolute", left:ind.left, top:ind.top, width:ind.width, height:ind.height, borderRadius:20, background:GRAD_PRIMARY, opacity:ind.ready?1:0, zIndex:0, boxShadow:SHADOW_BTN }} />
       {tabs.map(t => (
-        <button key={t.key} onClick={() => onChange(t.key)} style={{ flex:"1 1 auto", padding:"9px 4px", border:`1.5px solid ${active===t.key?D.gold:"transparent"}`, borderRadius:20, background:active===t.key?D.goldDim:D.surface, color:active===t.key?D.gold:D.textSub, fontSize:11, fontWeight:700, cursor:"pointer", boxShadow:active===t.key?"none":"0 1px 2px rgba(58,42,10,0.05)" }}>
-          {t.label}
+        <button key={t.key} ref={el => btnRefs.current[t.key]=el} onClick={() => onChange(t.key)} className="h19-tab-btn" style={{ position:"relative", zIndex:1, flex:"1 1 auto", padding:"9px 6px", border:"none", borderRadius:20, background:"transparent", color:active===t.key?"#0A0E14":D.textSub, fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, whiteSpace:"nowrap" }}>
+          {t.icon}{t.label}
         </button>
       ))}
     </div>
@@ -310,8 +358,38 @@ function TabBar({ tabs, active, onChange }) {
 
 function Pill({ active, danger, onClick, children }) {
   return (
-    <div onClick={onClick} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", border:`1.5px solid ${active?D.gold:danger?D.danger:D.border}`, borderRadius:20, background:active?D.goldDim:"transparent", color:active?D.gold:danger?D.danger:D.textSub, fontSize:13, fontWeight:600, cursor:"pointer", userSelect:"none" }}>
+    <div onClick={onClick} className="h19-btn" style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", border:`1.5px solid ${active?D.gold:danger?D.danger:D.border}`, borderRadius:20, background:active?D.goldDim:"transparent", color:active?D.gold:danger?D.danger:D.textSub, fontSize:13, fontWeight:600, cursor:"pointer", userSelect:"none" }}>
       {children}
+    </div>
+  );
+}
+
+// Barra de navegación fija al fondo de la pantalla, con el mismo indicador deslizante que TabBar
+function BottomNav({ tabs, active, onChange }) {
+  const containerRef = useRef(null);
+  const btnRefs = useRef({});
+  const [ind, setInd] = useState({ left:0, top:0, width:0, height:0, ready:false });
+
+  useEffect(() => {
+    const el = btnRefs.current[active];
+    const container = containerRef.current;
+    if (el && container) {
+      const cRect = container.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      setInd({ left:r.left-cRect.left, top:r.top-cRect.top, width:r.width, height:r.height, ready:true });
+    }
+  }, [active, tabs.length]);
+
+  return (
+    <div style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:50, display:"flex", justifyContent:"center", padding:"10px 12px calc(10px + env(safe-area-inset-bottom))", pointerEvents:"none" }}>
+      <div ref={containerRef} style={{ position:"relative", display:"flex", gap:4, width:"100%", maxWidth:420, background:"rgba(18,22,31,0.82)", backdropFilter:GLASS_BLUR, WebkitBackdropFilter:GLASS_BLUR, border:`1px solid ${D.border}`, borderRadius:22, padding:5, boxShadow:"0 12px 32px rgba(0,0,0,0.5)", pointerEvents:"auto" }}>
+        <div className="h19-tab-indicator" style={{ position:"absolute", left:ind.left, top:ind.top, width:ind.width, height:ind.height, borderRadius:18, background:GRAD_PRIMARY, opacity:ind.ready?1:0, zIndex:0, boxShadow:SHADOW_BTN }} />
+        {tabs.map(t => (
+          <button key={t.key} ref={el => btnRefs.current[t.key]=el} onClick={() => onChange(t.key)} className="h19-tab-btn" style={{ position:"relative", zIndex:1, flex:"1 1 auto", padding:"10px 4px", border:"none", borderRadius:18, background:"transparent", color:active===t.key?"#0A0E14":D.textSub, fontSize:10.5, fontWeight:700, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3 }}>
+          {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -321,7 +399,7 @@ const appStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:D
 function Spinner({ label }) {
   return (
     <div style={{ ...appStyle, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12 }}>
-      <div style={{ fontSize:32 }}>⛳</div>
+      <Flag size={32} color={D.gold} className="h19-spin" />
       <div style={{ color:D.gold, fontWeight:700 }}>{label}</div>
     </div>
   );
@@ -333,10 +411,10 @@ function TablaPosiciones({ torneo, highlightId, big }) {
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
   return (
     <Card style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}>🏆 Posiciones</SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><Trophy size={14}/> Posiciones</SLabel>
       {rows.map((u, pos) => (
         <div key={u.id} style={{ display:"flex", alignItems:"center", gap:big?16:10, padding:big?"16px 0":"10px 0", borderBottom:pos<rows.length-1?`1px solid ${D.border}`:"none", background:u.id===highlightId?D.goldDim+"55":"transparent" }}>
-          <div style={{ width:fs.pos, height:fs.pos, borderRadius:"50%", background:pos===0?D.goldDim:D.surface, border:`1px solid ${pos===0?D.gold:D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:fs.small+2, fontWeight:900, color:pos===0?D.gold:D.textSub, flexShrink:0 }}>{pos+1}</div>
+          <div className={pos===0?"h19-pulse":""} style={{ width:fs.pos, height:fs.pos, borderRadius:"50%", background:pos===0?GRAD_PRIMARY:D.surface, border:`1px solid ${pos===0?"transparent":D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:fs.small+2, fontWeight:900, color:pos===0?"#0A0E14":D.textSub, flexShrink:0 }}>{pos+1}</div>
           <Avatar name={u.nombre} id={u.id} size={fs.avatar} />
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:fs.name, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre} {u.hoyoSalida!=null && <span style={{ fontSize:fs.small, color:D.gold, fontWeight:600 }}>· salió hoyo {u.hoyoSalida+1}</span>}</div>
@@ -347,7 +425,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
           <div style={{ textAlign:"right" }}>
             <div style={{ fontSize:fs.sub+6, fontWeight:900, color:colorVsPar(u.vsPar) }}>{fmtVsPar(u.vsPar)}</div>
             <div style={{ fontSize:fs.sub, color:D.textSub, whiteSpace:"nowrap" }}>{u.brutoReal} − {u.hcAplicado}</div>
-            <div style={{ fontSize:fs.total, fontWeight:900, color:pos===0?D.gold:D.text }}>{u.neto}</div>
+            <div style={{ fontSize:fs.total, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos===0?D.gold:D.text }}><CountUp value={u.neto} /></div>
             <div style={{ fontSize:fs.small, color:D.textSub }}>total</div>
           </div>
         </div>
@@ -363,7 +441,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
   const fs = big ? 15 : 11;
   return (
     <Card style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}>🏌️ Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· ★ = hoyo de salida</span></SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida</span></SLabel>
       <div style={{ overflowX:"auto" }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, minWidth:pares.length*(big?46:32)+(big?140:90) }}>
           <thead>
@@ -402,12 +480,12 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
                   const esSalida = u.hoyoSalida === h;
                   return (
                     <td key={h} style={{ textAlign:"center", padding:big?"8px 4px":"5px 2px", position:"relative", outline:esSalida?`2px solid ${D.gold}`:"none", outlineOffset:-2 }}>
-                      {esSalida && <span style={{ position:"absolute", top:1, right:2, fontSize:big?10:7, color:D.gold }}>★</span>}
+                      {esSalida && <Star size={big?12:9} style={{ position:"absolute", top:1, right:2, color:D.gold }} fill={D.gold}/>}
                       <ScoreCell s={s} par={par} big={big} />
                     </td>
                   );
                 })}
-                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:900, color:D.gold }}>{u.brutoReal}</td>
+                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontFamily:FONT_DISPLAY, fontWeight:700, color:D.gold }}><CountUp value={u.brutoReal} /></td>
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:900, color:colorVsPar(u.vsPar), borderLeft:`1px solid ${D.border}` }}>{fmtVsPar(u.vsPar)}</td>
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:700, color:D.textSub }}>{u.hcAplicado}</td>
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>
@@ -439,7 +517,7 @@ function OyesLiveView({ torneo, big }) {
   if (!torneo.oyes || !torneo.oyes.holes || torneo.oyes.holes.length===0) {
     return (
       <Card style={big ? { padding:24 } : {}}>
-        <SLabel style={big ? { fontSize:16 } : {}}>🎯 O'Yes</SLabel>
+        <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> O'Yes</SLabel>
         <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:big?15:13 }}>Este torneo aún no tiene hoyos de O'Yes configurados.</div>
       </Card>
     );
@@ -457,8 +535,8 @@ function OyesLiveView({ torneo, big }) {
             <div style={{ fontSize:big?18:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
             <div style={{ fontSize:big?13:10, color:D.textSub }}>{e.unidadNombre}{showHole ? ` · Hoyo ${e.holeFisico}` : ""}</div>
           </div>
-          {pos<premios && <div style={{ fontSize:big?16:11, marginRight:4 }}>🏆</div>}
-          <div style={{ fontSize:big?24:16, fontWeight:900, color:pos<premios?D.gold:D.text }}>{fmtCm(e.cm)} <span style={{ fontSize:big?13:9, fontWeight:600, color:D.textSub }}>cm</span></div>
+          {pos<premios && <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4 }}/>}
+          <div style={{ fontSize:big?24:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text }}><CountUp value={e.cm} decimals={Number.isInteger(e.cm)?0:2} /> <span style={{ fontSize:big?13:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
         </div>
       ))}
     </>
@@ -467,7 +545,7 @@ function OyesLiveView({ torneo, big }) {
     <>
       {grupos.map((g, gi) => (
         <Card key={gi} style={big ? { padding:24 } : {}}>
-          <SLabel style={big ? { fontSize:16 } : {}}>🎯 {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total)</span></SLabel>
+          <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total)</span></SLabel>
           <RankList ranking={g.ranking} showHole={g.hole===null} />
         </Card>
       ))}
@@ -512,14 +590,14 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <option value="tarjeta">Solo Tarjeta</option>
               <option value="posiciones">Solo Posiciones</option>
               {hayOyes && <option value="oyes">Solo O'Yes</option>}
-              {hayOyes && <option value="auto">🔄 Automático (Tarjeta ↔ O'Yes)</option>}
+              {hayOyes && <option value="auto">Automático (Tarjeta ↔ O'Yes)</option>}
             </select>
           )}
           <button onClick={() => setTvMode(v => { const next = !v; if (next && hayOyes && vista==="todo") setVista("auto"); return next; })} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
-            {tvMode ? "✕ Salir de pantalla completa" : "🖥️ Modo pantalla completa"}
+            {tvMode ? <><X size={14}/> Salir de pantalla completa</> : <><Monitor size={14}/> Modo pantalla completa</>}
           </button>
         </div>
-        <div style={{ fontFamily:FONT_SERIF, fontSize:tvMode?58:32, fontWeight:700, color:D.gold }}>H19T</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?58:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
         <div style={{ fontSize:tvMode?26:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
         <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
         <div style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"6px 18px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.goldDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.gold}`, borderRadius:20 }}>
@@ -528,7 +606,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
         {vista === "auto" && (
           <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:6, padding:"5px 14px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
-            <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub }}>{autoSlide===0 ? "🏌️ Mostrando: Tarjeta" : "🎯 Mostrando: O'Yes"} · cambia cada 15s</span>
+            <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoSlide===0 ? <><ClipboardList size={13}/> Mostrando: Tarjeta</> : <><Target size={13}/> Mostrando: O'Yes</>} · cambia cada 15s</span>
           </div>
         )}
       </div>
@@ -577,9 +655,9 @@ function TeamPlayView({ codigo, onExit }) {
   if (loading) return <Spinner label="Conectando..." />;
   if (error) return (
     <div style={{ ...appStyle, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, padding:24, textAlign:"center" }}>
-      <div style={{ fontSize:32 }}>🚫</div>
+      <Ban size={32} color={D.danger}/>
       <div style={{ color:D.danger, fontWeight:700 }}>{error}</div>
-      <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>← Volver</button>
+      <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}><ChevronLeft size={14}/> Volver</button>
     </div>
   );
   if (!torneo || !torneo.unidades || !torneo.unidades[unidadId]) return <Spinner label="Torneo no encontrado" />;
@@ -623,7 +701,7 @@ function TeamPlayView({ codigo, onExit }) {
     <div style={appStyle}>
       <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontFamily:FONT_SERIF, fontSize:23, fontWeight:700, color:D.gold }}>H19T</div>
+          <div style={{ fontFamily:FONT_DISPLAY, fontSize:23, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre} · {campoNombre}</div>
@@ -640,33 +718,33 @@ function TeamPlayView({ codigo, onExit }) {
 
       {torneo.status === "finalizada" ? (
         <div style={{ padding:"0 12px 32px" }}>
-          <div style={{ textAlign:"center", padding:"8px 0 16px", color:D.success, fontWeight:700 }}>🏁 El torneo ha finalizado</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px 0 16px", color:D.success, fontWeight:700 }}><Flag size={16}/> El torneo ha finalizado</div>
           <TablaPosiciones torneo={torneo} highlightId={unidadId} />
           <TarjetaHoyoPorHoyo torneo={torneo} />
         </div>
       ) : (
-        <div style={{ padding:"0 12px 32px" }}>
-          <TabBar tabs={[{key:"marcar",label:"✏️ Anotar"},{key:"mio",label:"👀 Mi score"},{key:"pos",label:"🏆 Marcador en vivo"}]} active={tab} onChange={cambiarTab} />
+        <div style={{ padding:"0 12px 96px" }}>
+          <BottomNav tabs={[{key:"marcar",icon:<Pencil size={16}/>,label:"Anotar"},{key:"mio",icon:<Eye size={16}/>,label:"Mi score"},{key:"pos",icon:<Trophy size={16}/>,label:"En vivo"}]} active={tab} onChange={cambiarTab} />
 
           {tab === "marcar" && marcoA && (
             <Card>
               <SLabel>Anotas para: {nombreConJugadores(marcoA)}</SLabel>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginBottom:10 }}>
-                <button onClick={() => irAHoyo(Math.max(0,posInOrder-1))} disabled={posInOrder===0} style={{ width:36,height:36,borderRadius:"50%",border:`1px solid ${D.border}`,background:"transparent",color:D.text,cursor:"pointer",fontSize:18,opacity:posInOrder===0?0.3:1 }}>‹</button>
+                <button onClick={() => irAHoyo(Math.max(0,posInOrder-1))} disabled={posInOrder===0} style={{ width:36,height:36,borderRadius:"50%",border:`1px solid ${D.border}`,background:"transparent",color:D.text,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:posInOrder===0?0.3:1 }}><ChevronLeft size={18}/></button>
                 <div style={{ textAlign:"center", minWidth:100 }}>
                   <div style={{ fontSize:20, fontWeight:900 }}>Hoyo {hole+1}</div>
                   <div style={{ fontSize:12, color:D.gold, fontWeight:700 }}>PAR {par}</div>
                   <div style={{ fontSize:10, color:D.textDim, marginTop:2 }}>{posInOrder+1}/{pares.length} de la ronda</div>
-                  {teeSt && <div style={{ display:"inline-block", marginTop:4, padding:"2px 8px", borderRadius:10, fontSize:9, fontWeight:700, background:teeSt.bg, color:teeSt.fg, border:`1px solid ${teeSt.border}` }}>⛳ Tee {tee}</div>}
+                  {teeSt && <div style={{ display:"inline-block", marginTop:4, padding:"2px 8px", borderRadius:10, fontSize:9, fontWeight:700, background:teeSt.bg, color:teeSt.fg, border:`1px solid ${teeSt.border}` }}><Flag size={11} style={{display:"inline",verticalAlign:"-2px",marginRight:3}}/>Tee {tee}</div>}
                 </div>
-                <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} disabled={posInOrder===pares.length-1} style={{ width:36,height:36,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:18,opacity:posInOrder===pares.length-1?0.3:1 }}>›</button>
+                <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} disabled={posInOrder===pares.length-1} style={{ width:36,height:36,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:posInOrder===pares.length-1?0.3:1 }}><ChevronRight size={18}/></button>
               </div>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
                 <button onClick={() => setScore(-1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.border}`,background:D.surface,color:D.text,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>−</button>
-                <div style={{ width:60, textAlign:"center", fontSize:38, fontWeight:900 }}>{suScore ?? par}</div>
+                <div style={{ width:60, textAlign:"center", fontSize:38, fontFamily:FONT_DISPLAY, fontWeight:700 }}><CountUp value={suScore ?? par} duration={280} /></div>
                 <button onClick={() => setScore(1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
               </div>
-              <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:10 }}>{suScore===null||suScore===undefined ? "Aún no capturado (por defecto: par)" : "Capturado ✓"}</div>
+              <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:10 }}>{suScore===null||suScore===undefined ? "Aún no capturado (por defecto: par)" : "Capturado"}</div>
             </Card>
           )}
           {tab === "marcar" && !marcoA && (
@@ -678,13 +756,13 @@ function TeamPlayView({ codigo, onExit }) {
               <SLabel>Tu score {meMarca ? `· anotado por ${nombreConJugadores(meMarca)}` : ""}</SLabel>
               <div style={{ textAlign:"center", padding:"8px 0" }}>
                 <div style={{ fontSize:12, color:D.textSub }}>Hoyo {hole+1} · PAR {par}</div>
-                {teeSt && <div style={{ display:"inline-block", marginTop:4, padding:"2px 8px", borderRadius:10, fontSize:9, fontWeight:700, background:teeSt.bg, color:teeSt.fg, border:`1px solid ${teeSt.border}` }}>⛳ Tee {tee}</div>}
-                <div style={{ fontSize:44, fontWeight:900, color:D.gold, margin:"8px 0" }}>{miScore ?? "—"}</div>
+                {teeSt && <div style={{ display:"inline-block", marginTop:4, padding:"2px 8px", borderRadius:10, fontSize:9, fontWeight:700, background:teeSt.bg, color:teeSt.fg, border:`1px solid ${teeSt.border}` }}><Flag size={11} style={{display:"inline",verticalAlign:"-2px",marginRight:3}}/>Tee {tee}</div>}
+                <div style={{ fontSize:44, fontFamily:FONT_DISPLAY, fontWeight:700, color:D.gold, margin:"8px 0" }}>{miScore!=null ? <CountUp value={miScore} /> : "—"}</div>
                 <div style={{ fontSize:11, color:D.textDim }}>Solo lectura — lo anota {meMarca?.nombre || "tu equipo compañero"}</div>
               </div>
               <div style={{ display:"flex", justifyContent:"center", gap:10, marginTop:8 }}>
-                <button onClick={() => setPosInOrder(p => Math.max(0,p-1))} disabled={posInOrder===0} style={{ padding:"6px 14px", border:`1px solid ${D.border}`, borderRadius:20, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer", opacity:posInOrder===0?0.3:1 }}>‹ Anterior</button>
-                <button onClick={() => setPosInOrder(p => Math.min(pares.length-1,p+1))} disabled={posInOrder===pares.length-1} style={{ padding:"6px 14px", border:`1px solid ${D.border}`, borderRadius:20, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer", opacity:posInOrder===pares.length-1?0.3:1 }}>Siguiente ›</button>
+                <button onClick={() => setPosInOrder(p => Math.max(0,p-1))} disabled={posInOrder===0} style={{ padding:"6px 14px", border:`1px solid ${D.border}`, borderRadius:20, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer", opacity:posInOrder===0?0.3:1, display:"inline-flex", alignItems:"center", gap:2 }}><ChevronLeft size={13}/> Anterior</button>
+                <button onClick={() => setPosInOrder(p => Math.min(pares.length-1,p+1))} disabled={posInOrder===pares.length-1} style={{ padding:"6px 14px", border:`1px solid ${D.border}`, borderRadius:20, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer", opacity:posInOrder===pares.length-1?0.3:1, display:"inline-flex", alignItems:"center", gap:2 }}>Siguiente <ChevronRight size={13}/></button>
               </div>
             </Card>
           )}
@@ -727,9 +805,9 @@ function OyesRecordView({ torneoId, onExit }) {
   if (!torneo.oyes || !torneo.oyes.password) {
     return (
       <div style={{ ...appStyle, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, padding:24, textAlign:"center" }}>
-        <div style={{ fontSize:32 }}>🎯</div>
+        <Target size={32} color={D.gold}/>
         <div style={{ color:D.textSub }}>Este torneo aún no tiene configurada la anotación de O'Yes.</div>
-        <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>← Volver</button>
+        <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}><ChevronLeft size={14}/> Volver</button>
       </div>
     );
   }
@@ -737,14 +815,14 @@ function OyesRecordView({ torneoId, onExit }) {
   if (!autenticado) {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontFamily:FONT_SERIF, fontSize:40, fontWeight:700, color:D.gold }}>🎯 O'Yes</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:40, fontWeight:700, color:D.gold, display:"flex", alignItems:"center", gap:10, justifyContent:"center" }}><Target size={34}/> O'Yes</div>
         <div style={{ fontSize:14, color:D.textSub, marginBottom:4, textAlign:"center" }}>{torneo.nombre}</div>
         <div style={{ fontSize:13, color:D.textSub, marginBottom:8 }}>Ingresa la contraseña de anotación</div>
         <input type="password" value={passInput} onChange={e=>setPassInput(e.target.value)} placeholder="Contraseña" maxLength={8}
           style={{ width:"100%", padding:14, border:`1px solid ${passError?D.danger:D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700 }} />
         {passError && <div style={{ color:D.danger, fontSize:13 }}>Contraseña incorrecta</div>}
         <Btn onClick={() => { if (passInput.trim().toUpperCase()===torneo.oyes.password) { setAutenticado(true); setPassError(false); } else setPassError(true); }}>Entrar</Btn>
-        <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>← Volver</button>
+        <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}><ChevronLeft size={14}/> Volver</button>
       </div>
     );
   }
@@ -767,20 +845,20 @@ function OyesRecordView({ torneoId, onExit }) {
       jugadorId: jug.id, jugadorNombre: jug.name, unidadNombre: jug.unidadNombre,
       holeFisico: hoyoFisicoDesdeJugado(torneo, parseInt(hole)), holeJugado: parseInt(hole),
       cm: Math.round(parseFloat(cm)*100)/100, ts: Date.now(),
-    }).then(() => { setOkMsg(`✓ ${jug.name} — ${cm}cm en hoyo ${hole}`); setTimeout(()=>setOkMsg(""),2500); setCm(""); });
+    }).then(() => { setOkMsg(`${jug.name} — ${cm}cm en hoyo ${hole}`); setTimeout(()=>setOkMsg(""),2500); setCm(""); });
   };
 
   return (
     <div style={appStyle}>
       <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontFamily:FONT_SERIF, fontSize:21, fontWeight:700, color:D.gold }}>🎯 Anotar O'Yes</div>
+          <div style={{ fontFamily:FONT_DISPLAY, fontSize:21, fontWeight:700, color:D.gold, display:"flex", alignItems:"center", gap:8 }}><Target size={19}/> Anotar O'Yes</div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre}</div>
       </div>
       <div style={{ padding:"12px 12px 32px" }}>
-        {okMsg && <div style={{ padding:"8px 12px", background:D.greenBg, border:`1px solid ${D.success}`, borderRadius:10, color:D.success, fontSize:12, textAlign:"center", fontWeight:600, marginBottom:10 }}>{okMsg}</div>}
+        {okMsg && <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px 12px", background:D.greenBg, border:`1px solid ${D.success}`, borderRadius:10, color:D.success, fontSize:12, textAlign:"center", fontWeight:600, marginBottom:10 }}><Check size={14}/>{okMsg}</div>}
         <Card>
           <SLabel>Nueva anotación</SLabel>
           <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Jugador</div>
@@ -803,17 +881,17 @@ function OyesRecordView({ torneoId, onExit }) {
           </div>
           <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Distancia (centímetros)</div>
           <input type="number" min="0.01" step="0.01" value={cm} onChange={e=>setCm(e.target.value)} placeholder="Ej. 245 o 245.5" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
-          <Btn onClick={anotar} disabled={!jugadorId||!hole||!cm}>🎯 Guardar anotación</Btn>
+          <Btn onClick={anotar} disabled={!jugadorId||!hole||!cm}><Target size={16}/> Guardar anotación</Btn>
         </Card>
 
         <Card>
           <SLabel>Todas las anotaciones ({entradas.length})</SLabel>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
             {[
-              {key:"reciente", label:"🕐 Reciente"},
-              {key:"distancia", label:"📏 Distancia"},
-              {key:"jugador", label:"👤 Jugador"},
-              {key:"hoyo", label:"⛳ Hoyo"},
+              {key:"reciente", icon:<Clock size={13}/>, label:"Reciente"},
+              {key:"distancia", icon:<Ruler size={13}/>, label:"Distancia"},
+              {key:"jugador", icon:<User size={13}/>, label:"Jugador"},
+              {key:"hoyo", icon:<Flag size={13}/>, label:"Hoyo"},
             ].map(o => (
               <button key={o.key} onClick={() => setSortBy(o.key)} style={{ padding:"6px 12px", border:`1px solid ${sortBy===o.key?D.gold:D.border}`, borderRadius:20, background:sortBy===o.key?D.goldDim:"transparent", color:sortBy===o.key?D.gold:D.textSub, fontSize:12, fontWeight:700, cursor:"pointer" }}>{o.label}</button>
             ))}
@@ -834,7 +912,7 @@ function OyesRecordView({ torneoId, onExit }) {
                   <button onClick={() => setConfirmDeleteEntry(null)} style={{ padding:"4px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:10, cursor:"pointer" }}>No</button>
                 </div>
               ) : (
-                <button onClick={() => setConfirmDeleteEntry(id)} style={{ padding:"4px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}>✕</button>
+                <button onClick={() => setConfirmDeleteEntry(id)} style={{ padding:"4px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><X size={14}/></button>
               )}
             </div>
           ))}
@@ -875,11 +953,11 @@ export default function H19T() {
   if (mode === "home") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:16 }}>
-        <div style={{ fontFamily:FONT_SERIF, fontSize:68, fontWeight:700, letterSpacing:-2, color:D.gold, textAlign:"center" }}>H19T</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:68, fontWeight:700, letterSpacing:-2, color:D.gold, textAlign:"center", ...GRAD_TEXT_STYLE }}>H19T</div>
         <div style={{ fontSize:12, color:D.textSub, letterSpacing:3, textTransform:"uppercase", marginBottom:16 }}>Club de Golf</div>
-        <Btn onClick={() => setMode("pin")}>🏌️ Entrar como Admin</Btn>
-        <Btn outline onClick={() => setMode("codigo-input")}>🃏 Tengo un código de equipo</Btn>
-        <Btn outline onClick={() => setMode("torneo-input")}>👀 Ver torneo en vivo</Btn>
+        <Btn onClick={() => setMode("pin")}><User size={16}/> Entrar como Admin</Btn>
+        <Btn outline onClick={() => setMode("codigo-input")}><KeyRound size={16}/> Tengo un código de equipo</Btn>
+        <Btn outline onClick={() => setMode("torneo-input")}><Eye size={16}/> Ver torneo en vivo</Btn>
       </div>
     );
   }
@@ -887,13 +965,13 @@ export default function H19T() {
   if (mode === "pin") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontFamily:FONT_SERIF, fontSize:38, fontWeight:700, color:D.gold, textAlign:"center" }}>H19T</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:38, fontWeight:700, color:D.gold, textAlign:"center", ...GRAD_TEXT_STYLE }}>H19T</div>
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8 }}>Ingresa tu PIN de administrador</div>
         <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)} placeholder="PIN" maxLength={6}
           style={{ width:"100%", padding:14, border:`1px solid ${pinError?D.danger:D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:22, textAlign:"center", letterSpacing:8, fontWeight:700 }} />
         {pinError && <div style={{ color:D.danger, fontSize:13 }}>PIN incorrecto</div>}
         <Btn onClick={() => { if (pinInput===ADMIN_PIN) { setMode("admin"); setPinError(false); } else setPinError(true); }}>Entrar</Btn>
-        <button onClick={() => { setMode("home"); setPinInput(""); setPinError(false); }} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>← Volver</button>
+        <button onClick={() => { setMode("home"); setPinInput(""); setPinError(false); }} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}><ChevronLeft size={14}/> Volver</button>
       </div>
     );
   }
@@ -901,12 +979,12 @@ export default function H19T() {
   if (mode === "codigo-input") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontFamily:FONT_SERIF, fontSize:38, fontWeight:700, color:D.gold }}>H19T</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:38, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8, textAlign:"center" }}>Ingresa el código de tu equipo</div>
         <input value={codigoInput} onChange={e => setCodigoInput(e.target.value.toUpperCase())} placeholder="Código" maxLength={8}
           style={{ width:"100%", padding:14, border:`1px solid ${D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700 }} />
         <Btn onClick={() => { if (codigoInput.trim()) { const c = codigoInput.trim(); window.history.replaceState({},"",`${window.location.pathname}?equipo=${c}`); setActiveCodigo(c); setMode("team"); } }}>Entrar</Btn>
-        <button onClick={() => setMode("home")} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>← Volver</button>
+        <button onClick={() => setMode("home")} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}><ChevronLeft size={14}/> Volver</button>
       </div>
     );
   }
@@ -914,12 +992,12 @@ export default function H19T() {
   if (mode === "torneo-input") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontFamily:FONT_SERIF, fontSize:38, fontWeight:700, color:D.gold }}>H19T</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:38, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8, textAlign:"center" }}>Ingresa el código del torneo</div>
         <input value={torneoInput} onChange={e => setTorneoInput(e.target.value.toUpperCase())} placeholder="Código de torneo" maxLength={8}
           style={{ width:"100%", padding:14, border:`1px solid ${D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700 }} />
         <Btn onClick={() => { if (torneoInput.trim()) { const t = torneoInput.trim(); window.history.replaceState({},"",`${window.location.pathname}?torneo=${t}`); setActiveTorneoId(t); setMode("spectator"); } }}>Ver torneo</Btn>
-        <button onClick={() => setMode("home")} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>← Volver</button>
+        <button onClick={() => setMode("home")} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}><ChevronLeft size={14}/> Volver</button>
       </div>
     );
   }
@@ -1123,7 +1201,7 @@ function AdminTorneoApp({ onExit }) {
       set(ref(db, `torneos/${torneoId}/unidades/${editandoUnidadId}/jugadores`), jugadores),
       set(ref(db, `torneos/${torneoId}/unidades/${editandoUnidadId}/hcAplicado`), hcAplicado),
       set(ref(db, `torneos/${torneoId}/unidades/${editandoUnidadId}/nombre`), nombre),
-    ]).then(() => { setGuardadoOk("✓ Cambios guardados"); setTimeout(()=>setGuardadoOk(""), 2000); });
+    ]).then(() => { setGuardadoOk("Cambios guardados"); setTimeout(()=>setGuardadoOk(""), 2000); });
     cancelarEdicionUnidad();
   };
 
@@ -1257,14 +1335,26 @@ function AdminTorneoApp({ onExit }) {
   const Header = ({ title }) => (
     <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"20px 16px 14px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ fontFamily:FONT_SERIF, fontSize:25, fontWeight:700, color:D.gold }}>H19T</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:25, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
         <button onClick={onExit} style={{ fontSize:12, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
       </div>
       {title && <div style={{ fontSize:12.5, color:D.textSub, marginTop:3 }}>{title}</div>}
     </div>
   );
 
-  const mainTabs = [{key:"dir",label:"👥 Jugadores"},{key:"nuevo",label:"🆕 Nuevo torneo"},{key:"hist",label:"📋 Historial"}];
+  const mainTabs = [
+    {key:"dir",icon:<Users size={14}/>,label:"Jugadores"},
+    {key:"nuevo",icon:<Sparkles size={14}/>,label:"Nuevo torneo"},
+    {key:"hist",icon:<ClipboardList size={14}/>,label:"Historial"},
+  ];
+  const adminTabs = [
+    {key:"unidades",icon:<User size={14}/>,label:"Unidades"},
+    {key:"grupos",icon:<Link2 size={14}/>,label:"Grupos y códigos"},
+    {key:"captura",icon:<Pencil size={14}/>,label:"Capturar"},
+    {key:"oyes",icon:<Target size={14}/>,label:"O'Yes"},
+    {key:"imprimir",icon:<Printer size={14}/>,label:"Imprimir"},
+    {key:"live",icon:<Trophy size={14}/>,label:"En vivo"},
+  ];
 
   // ── DIRECTORIO ──
   if (screen==="dir") return (
@@ -1274,7 +1364,7 @@ function AdminTorneoApp({ onExit }) {
         <TabBar tabs={mainTabs} active="dir" onChange={k => setScreen(k)} />
         {listaTorneos.length > 0 && (
           <Card>
-            <SLabel>⛳ Torneos en curso</SLabel>
+            <SLabel><Flag size={14}/> Torneos en curso</SLabel>
             {listaTorneos.map(t => (
               <div key={t.id} style={{ padding:"10px 0", borderBottom:`1px solid ${D.border}` }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
@@ -1284,8 +1374,8 @@ function AdminTorneoApp({ onExit }) {
                   </div>
                   {confirmDeleteTorneo!==t.id && (
                     <>
-                      <button onClick={() => setConfirmDeleteTorneo(t.id)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:12, cursor:"pointer" }}>🗑</button>
-                      <div onClick={() => abrirTorneoExistente(t)} style={{ fontSize:16, color:D.gold, cursor:"pointer" }}>›</div>
+                      <button onClick={() => setConfirmDeleteTorneo(t.id)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:12, cursor:"pointer" }}><Trash2 size={14}/></button>
+                      <div onClick={() => abrirTorneoExistente(t)} style={{ color:D.gold, cursor:"pointer", display:"flex", alignItems:"center" }}><ChevronRight size={18}/></div>
                     </>
                   )}
                 </div>
@@ -1325,7 +1415,7 @@ function AdminTorneoApp({ onExit }) {
                   <button onClick={() => setConfirmDelete(null)} style={{ padding:"5px 10px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:11, cursor:"pointer" }}>No</button>
                 </div>
               ) : (
-                <button onClick={() => setConfirmDelete(p.id)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}>✕</button>
+                <button onClick={() => setConfirmDelete(p.id)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><X size={14}/></button>
               )}
             </div>
           ))}
@@ -1338,7 +1428,7 @@ function AdminTorneoApp({ onExit }) {
             <button onClick={addPlayer} style={{ padding:"10px 14px", border:`1px solid ${D.gold}`, borderRadius:10, background:D.goldDim, color:D.gold, fontSize:13, fontWeight:700, cursor:"pointer" }}>+ Agregar</button>
           </div>
         </Card>
-        <Btn onClick={() => setScreen("nuevo")}>⛳ Crear nuevo torneo</Btn>
+        <Btn onClick={() => setScreen("nuevo")}><Flag size={16}/> Crear nuevo torneo</Btn>
       </div>
     </div>
   );
@@ -1359,7 +1449,7 @@ function AdminTorneoApp({ onExit }) {
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {Object.entries(CAMPOS).map(([key,c]) => (
               <button key={key} onClick={() => setCampo(key)} style={{ width:"100%", padding:"10px 14px", border:`1px solid ${campo===key?D.gold:D.border}`, borderRadius:10, background:campo===key?D.goldDim:"transparent", color:campo===key?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", textAlign:"left" }}>
-                {campo===key?"✓ ":""}{c.nombre}
+                {campo===key && <Check size={13} style={{marginRight:4}}/>}{c.nombre}
               </button>
             ))}
           </div>
@@ -1375,7 +1465,7 @@ function AdminTorneoApp({ onExit }) {
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {Object.entries(MODALIDADES).map(([key,m]) => (
               <button key={key} onClick={() => setModalidad(key)} style={{ width:"100%", padding:"10px 14px", border:`1px solid ${modalidad===key?D.gold:D.border}`, borderRadius:10, background:modalidad===key?D.goldDim:"transparent", color:modalidad===key?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", textAlign:"left" }}>
-                {modalidad===key?"✓ ":""}{m.label} {m.size>1?`(${m.size} jugadores, scramble)`:"(1 jugador)"}
+                {modalidad===key && <Check size={13} style={{marginRight:4}}/>}{m.label} {m.size>1?`(${m.size} jugadores, scramble)`:"(1 jugador)"}
               </button>
             ))}
           </div>
@@ -1392,7 +1482,7 @@ function AdminTorneoApp({ onExit }) {
           </div>
         </Card>
         <Btn onClick={crearTorneo}>Crear torneo y armar unidades</Btn>
-        <Btn outline onClick={() => setScreen("dir")} style={{ marginTop:8 }}>← Volver</Btn>
+        <Btn outline onClick={() => setScreen("dir")} style={{ marginTop:8 }}><ChevronLeft size={14}/> Volver</Btn>
       </div>
     </div>
   );
@@ -1408,7 +1498,7 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="unidades" onChange={setScreen} />
+          <TabBar tabs={adminTabs} active="unidades" onChange={setScreen} />
           <Card>
             <SLabel>{MODALIDADES[torneo.modalidad].label} · {torneo.nHoles} hoyos · HC {torneo.hcPercent}%</SLabel>
             <div style={{ fontSize:12, color:D.textSub }}>Selecciona {tamañoModalidad} jugador{tamañoModalidad>1?"es":""} para formar {tamañoModalidad>1?"un equipo":"una unidad individual"}.</div>
@@ -1418,7 +1508,7 @@ function AdminTorneoApp({ onExit }) {
             {disponibles.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Todos los jugadores del directorio ya están asignados</div>}
             {disponibles.map((p, idx) => (
               <div key={p.id} onClick={() => toggleJugadorSel(p.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:idx<disponibles.length-1?`1px solid ${D.border}`:"none", cursor:"pointer" }}>
-                <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${selJugadores.has(p.id)?D.gold:D.border}`,background:selJugadores.has(p.id)?D.goldDim:"transparent",color:D.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700 }}>{selJugadores.has(p.id)?"✓":""}</div>
+                <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${selJugadores.has(p.id)?D.gold:D.border}`,background:selJugadores.has(p.id)?D.goldDim:"transparent",color:D.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700 }}>{selJugadores.has(p.id) && <Check size={13}/>}</div>
                 <Avatar name={p.name} id={p.id} size={28} />
                 <div style={{ flex:1, fontSize:13, fontWeight:600 }}>{p.name}</div>
                 <div style={{ fontSize:11, color:D.gold }}>HC {p.hc}</div>
@@ -1438,7 +1528,7 @@ function AdminTorneoApp({ onExit }) {
 
           <Card style={{ marginTop:16 }}>
             <SLabel>Unidades creadas ({unidadesList.length})</SLabel>
-            {guardadoOk && <div style={{ textAlign:"center", color:D.success, fontSize:12, fontWeight:600, marginBottom:8 }}>{guardadoOk}</div>}
+            {guardadoOk && <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, color:D.success, fontSize:12, fontWeight:600, marginBottom:8 }}><Check size={14}/>{guardadoOk}</div>}
             {unidadesList.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Aún no hay unidades</div>}
             {unidadesList.map((u, idx) => (
               <div key={u.id} style={{ padding:"9px 0", borderBottom:idx<unidadesList.length-1?`1px solid ${D.border}`:"none" }}>
@@ -1448,9 +1538,9 @@ function AdminTorneoApp({ onExit }) {
                     <div style={{ fontSize:13, fontWeight:600 }}>{u.nombre}</div>
                     <div style={{ fontSize:10, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")} · HC aplicado {u.hcAplicado}</div>
                   </div>
-                  {u.grupoId && <div style={{ fontSize:10, color:D.success, fontWeight:700 }}>Hoyo {u.hoyoSalida+1} ✓</div>}
-                  <button onClick={() => editandoUnidadId===u.id ? cancelarEdicionUnidad() : iniciarEdicionUnidad(u)} style={{ padding:"4px 8px", border:`1px solid ${editandoUnidadId===u.id?D.gold:D.border}`, borderRadius:8, background:editandoUnidadId===u.id?D.goldDim:"transparent", color:editandoUnidadId===u.id?D.gold:D.textSub, fontSize:11, cursor:"pointer" }}>{editandoUnidadId===u.id?"✕":"Editar"}</button>
-                  {!u.grupoId && <button onClick={() => eliminarUnidad(u.id)} style={{ padding:"4px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}>🗑</button>}
+                  {u.grupoId && <div style={{ fontSize:10, color:D.success, fontWeight:700 }}>Hoyo {u.hoyoSalida+1}</div>}
+                  <button onClick={() => editandoUnidadId===u.id ? cancelarEdicionUnidad() : iniciarEdicionUnidad(u)} style={{ padding:"4px 8px", border:`1px solid ${editandoUnidadId===u.id?D.gold:D.border}`, borderRadius:8, background:editandoUnidadId===u.id?D.goldDim:"transparent", color:editandoUnidadId===u.id?D.gold:D.textSub, fontSize:11, cursor:"pointer" }}>{editandoUnidadId===u.id ? <X size={13}/> : "Editar"}</button>
+                  {!u.grupoId && <button onClick={() => eliminarUnidad(u.id)} style={{ padding:"4px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><Trash2 size={14}/></button>}
                 </div>
 
                 {editandoUnidadId===u.id && (
@@ -1463,14 +1553,14 @@ function AdminTorneoApp({ onExit }) {
                     {disponiblesEdit.map((p, i) => (
                       <div key={p.id} onClick={() => { const s=new Set(editSelJugadores); if (s.has(p.id)) s.delete(p.id); else { if (s.size>=tamañoModalidad) return; s.add(p.id); } setEditSelJugadores(s); }}
                         style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:i<disponiblesEdit.length-1?`1px solid ${D.border}`:"none", cursor:"pointer" }}>
-                        <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${editSelJugadores.has(p.id)?D.gold:D.border}`,background:editSelJugadores.has(p.id)?D.goldDim:"transparent",color:D.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700 }}>{editSelJugadores.has(p.id)?"✓":""}</div>
+                        <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${editSelJugadores.has(p.id)?D.gold:D.border}`,background:editSelJugadores.has(p.id)?D.goldDim:"transparent",color:D.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700 }}>{editSelJugadores.has(p.id) && <Check size={13}/>}</div>
                         <Avatar name={p.name} id={p.id} size={24} />
                         <div style={{ flex:1, fontSize:12, fontWeight:600 }}>{p.name}</div>
                         <div style={{ fontSize:10, color:D.gold }}>HC {p.hc}</div>
                       </div>
                     ))}
                     <div style={{ display:"flex", gap:8, marginTop:10 }}>
-                      <button onClick={guardarEdicionUnidad} disabled={editSelJugadores.size!==tamañoModalidad} style={{ flex:1, padding:8, border:"none", borderRadius:8, background:editSelJugadores.size!==tamañoModalidad?D.border:D.gold, color:"#fff", fontSize:12, fontWeight:700, cursor:editSelJugadores.size!==tamañoModalidad?"default":"pointer" }}>Guardar cambios</button>
+                      <button onClick={guardarEdicionUnidad} disabled={editSelJugadores.size!==tamañoModalidad} style={{ flex:1, padding:8, border:"none", borderRadius:8, background:editSelJugadores.size!==tamañoModalidad?D.border:D.gold, color:editSelJugadores.size!==tamañoModalidad?D.textDim:"#0A0E14", fontSize:12, fontWeight:700, cursor:editSelJugadores.size!==tamañoModalidad?"default":"pointer" }}>Guardar cambios</button>
                       <button onClick={cancelarEdicionUnidad} style={{ flex:1, padding:8, border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Cancelar</button>
                     </div>
                     {u.grupoId && <div style={{ fontSize:10, color:D.textDim, marginTop:8 }}>Esta unidad ya está en un grupo de salida — cambiar sus integrantes no afecta su hoyo ni su código.</div>}
@@ -1479,7 +1569,7 @@ function AdminTorneoApp({ onExit }) {
               </div>
             ))}
           </Card>
-          <Btn outline onClick={() => setScreen("grupos")}>Siguiente: grupos de salida →</Btn>
+          <Btn outline onClick={() => setScreen("grupos")}>Siguiente: grupos de salida <ChevronRight size={16}/></Btn>
         </div>
       </div>
     );
@@ -1498,7 +1588,7 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="grupos" onChange={setScreen} />
+          <TabBar tabs={adminTabs} active="grupos" onChange={setScreen} />
 
           {sinGrupo.length>0 && (
             <Card>
@@ -1509,7 +1599,7 @@ function AdminTorneoApp({ onExit }) {
                 <select value={hoyoSel} onChange={e=>setHoyoSel(parseInt(e.target.value))} style={{ padding:"6px 10px", border:`1px solid ${hoyosUsados.has(hoyoSel)?D.danger:D.border}`, borderRadius:8, background:D.surface, color:D.text, fontSize:13 }}>
                   {torneo.pares.map((_,i) => <option key={i} value={i+1}>Hoyo {i+1}{hoyosUsados.has(i+1)?" (ya ocupado)":""}</option>)}
                 </select>
-                {hoyosUsados.has(hoyoSel) && <div style={{ fontSize:11, color:D.danger, marginTop:6 }}>⚠️ Ya hay un grupo saliendo del hoyo {hoyoSel}. Verifica que sea correcto antes de continuar.</div>}
+                {hoyosUsados.has(hoyoSel) && <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:D.danger, marginTop:6 }}><AlertTriangle size={13}/> Ya hay un grupo saliendo del hoyo {hoyoSel}. Verifica que sea correcto antes de continuar.</div>}
               </div>
               {sinGrupo.map((u, idx) => {
                 const pos = selUnidades.indexOf(u.id);
@@ -1521,7 +1611,7 @@ function AdminTorneoApp({ onExit }) {
                   </div>
                 );
               })}
-              <Btn onClick={crearGrupo} disabled={selUnidades.length<2}>Crear grupo ({selUnidades.length} unidades) →</Btn>
+              <Btn onClick={crearGrupo} disabled={selUnidades.length<2}>Crear grupo ({selUnidades.length} unidades) <ChevronRight size={16}/></Btn>
             </Card>
           )}
 
@@ -1540,16 +1630,16 @@ function AdminTorneoApp({ onExit }) {
                   {us.map((u,i) => (
                     <div key={u.id} style={{ display:"flex", alignItems:"center", gap:4 }}>
                       <div style={{ padding:"4px 10px", background:D.goldDim, border:`1px solid ${D.gold}33`, borderRadius:14, fontSize:12, fontWeight:600 }}>{u.nombre}</div>
-                      {i<us.length-1 && <span style={{ color:D.textDim }}>→</span>}
+                      {i<us.length-1 && <ChevronRight size={13} color={D.textDim}/>}
                     </div>
                   ))}
-                  <span style={{ color:D.textDim }}>→ ({us[0].nombre})</span>
+                  <span style={{ color:D.textDim, display:"inline-flex", alignItems:"center", gap:3 }}><ChevronRight size={13}/> ({us[0].nombre})</span>
                 </div>
                 <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:6 }}>
                   {us.map(u => (
                     <div key={u.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <div style={{ fontSize:11, color:D.textSub, flex:1 }}>{u.nombre}: código <b style={{ color:D.gold }}>{u.codigo}</b></div>
-                      <button onClick={() => compartirCodigoIndividual(u)} style={{ padding:"4px 10px", border:"none", borderRadius:8, background:"#25D366", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>💬 Enviar</button>
+                      <button onClick={() => compartirCodigoIndividual(u)} style={{ padding:"4px 10px", border:"none", borderRadius:8, background:"#25D366", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}><MessageCircle size={13}/> Enviar</button>
                     </div>
                   ))}
                 </div>
@@ -1561,7 +1651,7 @@ function AdminTorneoApp({ onExit }) {
                       <button onClick={() => setConfirmDisolver(null)} style={{ padding:"5px 10px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:11, cursor:"pointer" }}>No</button>
                     </div>
                   ) : (
-                    <button onClick={() => setConfirmDisolver(gid)} style={{ padding:"5px 10px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}>↩ Deshacer grupo (mover equipos)</button>
+                    <button onClick={() => setConfirmDisolver(gid)} style={{ padding:"5px 10px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><Undo2 size={13}/> Deshacer grupo (mover equipos)</button>
                   )}
                 </div>
               </div>
@@ -1569,10 +1659,10 @@ function AdminTorneoApp({ onExit }) {
           </Card>
 
           {torneo.status !== "en_juego" && torneo.status !== "finalizada" && (
-            <Btn onClick={iniciarTorneo} disabled={!todasAsignadas}>{todasAsignadas ? "🚩 Iniciar torneo" : `Faltan ${sinGrupo.length} unidades por agrupar`}</Btn>
+            <Btn onClick={iniciarTorneo} disabled={!todasAsignadas}>{todasAsignadas ? <><Flag size={16}/> Iniciar torneo</> : `Faltan ${sinGrupo.length} unidades por agrupar`}</Btn>
           )}
           {torneo.status === "en_juego" && (
-            <div style={{ padding:"10px 12px", background:D.greenBg, border:`1px solid ${D.success}`, borderRadius:10, color:D.success, fontSize:12, fontWeight:600, textAlign:"center", marginBottom:10 }}>✓ Torneo en curso — los equipos ya pueden anotar</div>
+            <div style={{ padding:"10px 12px", background:D.greenBg, border:`1px solid ${D.success}`, borderRadius:10, color:D.success, fontSize:12, fontWeight:600, textAlign:"center", marginBottom:10 }}><Check size={14} style={{display:"inline",verticalAlign:"-2px",marginRight:5}}/>Torneo en curso — los equipos ya pueden anotar</div>
           )}
         </div>
       </div>
@@ -1587,7 +1677,7 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="oyes" onChange={setScreen} />
+          <TabBar tabs={adminTabs} active="oyes" onChange={setScreen} />
 
           <Card>
             <SLabel>Modalidad de premiación</SLabel>
@@ -1596,7 +1686,7 @@ function AdminTorneoApp({ onExit }) {
               {key:"hoyo", label:"O'Yes por Hoyo", desc:"Premios independientes en cada hoyo seleccionado."},
             ].map(o => (
               <button key={o.key} onClick={() => setOyesModo(o.key)} style={{ width:"100%", padding:"10px 14px", border:`1px solid ${oyesModo===o.key?D.gold:D.border}`, borderRadius:10, background:oyesModo===o.key?D.goldDim:"transparent", color:oyesModo===o.key?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", textAlign:"left", marginBottom:8 }}>
-                {oyesModo===o.key?"✓ ":""}{o.label}
+                {oyesModo===o.key && <Check size={13} style={{marginRight:4}}/>}{o.label}
                 <div style={{ fontSize:11, fontWeight:400, color:D.textDim, marginTop:2 }}>{o.desc}</div>
               </button>
             ))}
@@ -1610,7 +1700,7 @@ function AdminTorneoApp({ onExit }) {
             <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
               {holesDisponibles.map(h => (
                 <button key={h} onClick={() => toggleOyesHole(h)} style={{ padding:"8px 14px", border:`1px solid ${oyesHoles.includes(h)?D.gold:D.border}`, borderRadius:10, background:oyesHoles.includes(h)?D.goldDim:"transparent", color:oyesHoles.includes(h)?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                  {oyesHoles.includes(h)?"✓ ":""}Hoyo {h}
+                  {oyesHoles.includes(h) && <Check size={13} style={{marginRight:4}}/>}Hoyo {h}
                 </button>
               ))}
             </div>
@@ -1630,20 +1720,20 @@ function AdminTorneoApp({ onExit }) {
           {yaConfigurado && (
             <>
               <Card style={{ marginTop:16 }}>
-                <SLabel>🔑 Acceso para anotar</SLabel>
+                <SLabel><KeyRound size={14}/> Acceso para anotar</SLabel>
                 <div style={{ fontSize:12, color:D.textSub, marginBottom:10 }}>Comparte este link y la contraseña con quien vaya a anotar distancias en el campo (puede ser más de una persona, todos usan la misma contraseña).</div>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 12px", background:D.goldDim, borderRadius:10, marginBottom:10 }}>
                   <span style={{ fontSize:12, color:D.textSub }}>Contraseña</span>
                   <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                     <span style={{ fontSize:18, fontWeight:900, color:D.gold, letterSpacing:2 }}>{torneo.oyes.password}</span>
-                    <button onClick={generarPasswordOyes} style={{ padding:"4px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:10, cursor:"pointer" }}>🔄 Regenerar</button>
+                    <button onClick={generarPasswordOyes} style={{ padding:"4px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:10, cursor:"pointer" }}><RefreshCw size={12}/> Regenerar</button>
                   </div>
                 </div>
-                <button onClick={compartirOyesWhatsapp} style={{ width:"100%", padding:"12px", border:"none", borderRadius:12, background:"#25D366", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>💬 Compartir por WhatsApp (link + contraseña)</button>
+                <button onClick={compartirOyesWhatsapp} style={{ width:"100%", padding:"12px", border:"none", borderRadius:12, background:"#25D366", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><MessageCircle size={15}/> Compartir por WhatsApp (link + contraseña)</button>
               </Card>
 
               <Card>
-                <SLabel>📺 Ver clasificación en vivo</SLabel>
+                <SLabel><Tv size={14}/> Ver clasificación en vivo</SLabel>
                 <div style={{ fontSize:12, color:D.textSub, marginBottom:8 }}>Este link es público, sin contraseña — ideal para proyectar.</div>
                 <div style={{ fontSize:11, color:D.gold, wordBreak:"break-all" }}>{window.location.origin}{window.location.pathname}?torneo={torneoId}&vista=oyes</div>
               </Card>
@@ -1669,8 +1759,8 @@ function AdminTorneoApp({ onExit }) {
           <Header title={torneo.nombre} />
         </div>
         <div style={{ padding:"12px 12px" }} className="no-print">
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="imprimir" onChange={setScreen} />
-          <button onClick={() => window.print()} style={{ width:"100%", padding:"12px", border:"none", borderRadius:12, background:`linear-gradient(135deg,${D.gold},${D.goldLight})`, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:12 }}>🖨️ Imprimir esta lista</button>
+          <TabBar tabs={adminTabs} active="imprimir" onChange={setScreen} />
+          <button onClick={() => window.print()} style={{ width:"100%", padding:"12px", border:"none", borderRadius:12, background:`linear-gradient(135deg,${D.gold},${D.goldLight})`, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:12 }}><Printer size={15}/> Imprimir esta lista</button>
         </div>
         <div style={{ padding:"0 12px 32px" }}>
           <Card className="print-card">
@@ -1697,18 +1787,18 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="live" onChange={setScreen} />
+          <TabBar tabs={adminTabs} active="live" onChange={setScreen} />
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-            <button onClick={shareTorneo} style={{ flex:1, padding:"10px", border:`1px solid ${D.gold}`, borderRadius:12, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:"pointer" }}>📤 Compartir link espectador</button>
+            <button onClick={shareTorneo} style={{ flex:1, padding:"10px", border:`1px solid ${D.gold}`, borderRadius:12, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:"pointer" }}><Share2 size={13}/> Compartir link espectador</button>
           </div>
           {shareMsg && <div style={{ textAlign:"center", color:D.success, fontSize:12, marginBottom:8 }}>{shareMsg}</div>}
           <div style={{ textAlign:"center", fontSize:11, color:D.textSub, marginBottom:10 }}>Código de torneo: <b style={{ color:D.gold }}>{torneoId}</b></div>
           <TablaPosiciones torneo={torneo} />
           <TarjetaHoyoPorHoyo torneo={torneo} />
           {torneo.status !== "finalizada" ? (
-            <Btn danger onClick={finalizarTorneo}>🏁 Finalizar torneo</Btn>
+            <Btn danger onClick={finalizarTorneo}><Flag size={16}/> Finalizar torneo</Btn>
           ) : (
-            <div style={{ textAlign:"center", padding:12, color:D.success, fontWeight:700 }}>🏆 Torneo finalizado</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:12, color:D.success, fontWeight:700 }}><Trophy size={16}/> Torneo finalizado</div>
           )}
         </div>
       </div>
@@ -1723,7 +1813,7 @@ function AdminTorneoApp({ onExit }) {
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
-          <TabBar tabs={[{key:"unidades",label:"👤 Unidades"},{key:"grupos",label:"🔗 Grupos y códigos"},{key:"captura",label:"✏️ Capturar"},{key:"oyes",label:"🎯 O'Yes"},{key:"imprimir",label:"🖨️ Imprimir"},{key:"live",label:"🏆 En vivo"}]} active="captura" onChange={setScreen} />
+          <TabBar tabs={adminTabs} active="captura" onChange={setScreen} />
           <Card>
             <SLabel>Elige la unidad a capturar o corregir</SLabel>
             <div style={{ fontSize:12, color:D.textSub, marginBottom:10 }}>Como admin puedes anotar o corregir el score de cualquier equipo, sin necesitar su código — útil para errores o para ayudar con la captura.</div>
@@ -1755,7 +1845,7 @@ function AdminTorneoApp({ onExit }) {
                     <div style={{ width:28, textAlign:"center", fontSize:16, fontWeight:900 }}>{s ?? "—"}</div>
                     <button onClick={() => ajustarScoreAdmin(u.id, h, 1)} style={{ width:30,height:30,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
                     {s !== null && s !== undefined && (
-                      <button onClick={() => borrarScoreAdmin(u.id, h)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}>✕</button>
+                      <button onClick={() => borrarScoreAdmin(u.id, h)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><X size={14}/></button>
                     )}
                   </div>
                 );
@@ -1788,8 +1878,8 @@ function AdminTorneoApp({ onExit }) {
                   </div>
                   <div style={{ fontSize:12, color:D.textSub, marginBottom:6 }}>{CAMPOS[r.campo]?.nombre} · {MODALIDADES[r.modalidad]?.label} · HC {r.hcPercent}%</div>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                    <div style={{ fontSize:12, background:D.goldDim, color:D.gold, padding:"2px 10px", borderRadius:10, fontWeight:700 }}>🏆 {r.ganador} ({r.netoGanador} neto)</div>
-                    <div style={{ fontSize:11, color:D.textSub }}>{isOpen?"▲":"▼"}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, background:D.goldDim, color:D.gold, padding:"2px 10px", borderRadius:10, fontWeight:700 }}><Trophy size={12}/> {r.ganador} ({r.netoGanador} neto)</div>
+                    <div style={{ fontSize:11, color:D.textSub }}>{isOpen?<ChevronUp size={14}/>:<ChevronDown size={14}/>}</div>
                   </div>
                 </div>
                 {isOpen && r.unidades && (
@@ -1812,7 +1902,7 @@ function AdminTorneoApp({ onExit }) {
                           <button onClick={() => setConfirmDeleteHist(null)} style={{ padding:"6px 12px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:11, cursor:"pointer" }}>Cancelar</button>
                         </div>
                       ) : (
-                        <button onClick={() => setConfirmDeleteHist(r.id)} style={{ width:"100%", padding:"8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:12, cursor:"pointer" }}>🗑️ Eliminar torneo</button>
+                        <button onClick={() => setConfirmDeleteHist(r.id)} style={{ width:"100%", padding:"8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:12, cursor:"pointer" }}><Trash2 size={13}/> Eliminar torneo</button>
                       )}
                     </div>
                   </div>
