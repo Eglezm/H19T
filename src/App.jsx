@@ -5,7 +5,7 @@ import {
   Target, Trophy, Check, Flag, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pencil, User, Users,
   Printer, Link2, X, Trash2, Star, ArrowLeftRight, RefreshCw, Eye, MessageCircle,
   Monitor, Ban, Clock, Ruler, Layers, Sparkles, ClipboardList, AlertTriangle,
-  Undo2, KeyRound, Tv, Share2, LogOut, Plus, Minus, MapPin, ListChecks,
+  Undo2, KeyRound, Tv, Share2, LogOut, Plus, Minus, MapPin, ListChecks, Medal,
 } from "lucide-react";
 
 // ─── FIREBASE ──────────────────────────────────────
@@ -441,6 +441,11 @@ function Spinner({ label }) {
 function TablaPosiciones({ torneo, highlightId, big }) {
   const rows = leaderboard(torneo);
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
+  const MEDALS = [
+    { label:"1er Lugar", color:"#C9A227" }, // oro
+    { label:"2do Lugar", color:"#9AA0A6" }, // plata
+    { label:"3er Lugar", color:"#B08D57" }, // bronce
+  ];
   const rowRefs = useRef({});
   const prevPositions = useRef({});
   const prevRanks = useRef({});
@@ -498,6 +503,12 @@ function TablaPosiciones({ torneo, highlightId, big }) {
               {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""} {u.jugadores && u.jugadores.length>1 ? "· " : ""}{u.jugados}/{torneo.pares.length} hoyos
             </div>
           </div>
+          {pos < 3 && (
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, flexShrink:0, padding:"0 8px" }}>
+              <Medal size={big?26:18} color={MEDALS[pos].color} fill={MEDALS[pos].color} fillOpacity={0.18} />
+              <span style={{ fontSize:big?12:9, fontWeight:700, color:MEDALS[pos].color, whiteSpace:"nowrap" }}>{MEDALS[pos].label}</span>
+            </div>
+          )}
           <div style={{ textAlign:"right" }}>
             <div style={{ fontSize:fs.sub+6, fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</div>
             <div style={{ fontSize:fs.sub, color:D.textSub, whiteSpace:"nowrap" }}>{u.brutoReal} − {u.hcAplicado}</div>
