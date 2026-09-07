@@ -5,7 +5,7 @@ import {
   Target, Trophy, Check, Flag, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pencil, User, Users,
   Printer, Link2, X, Trash2, Star, ArrowLeftRight, RefreshCw, Eye, MessageCircle,
   Monitor, Ban, Clock, Ruler, Layers, Sparkles, ClipboardList, AlertTriangle,
-  Undo2, KeyRound, Tv, Share2, LogOut, Plus, Minus, MapPin, ListChecks, Medal,
+  Undo2, KeyRound, Tv, Share2, LogOut, Plus, Minus, MapPin, ListChecks, Medal, ListOrdered,
 } from "lucide-react";
 
 // ─── FIREBASE ──────────────────────────────────────
@@ -441,19 +441,15 @@ function Spinner({ label }) {
 function TablaPosiciones({ torneo, highlightId, big }) {
   const rows = leaderboard(torneo);
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
-  // Podio: jerarquía visual Campeones > Subcampeones > Tercer puesto — insignia, tipografía
-  // y presencia decrecientes, con un tinte de fondo sutil (nunca sólido) por nivel.
-  const TIERS = [
-    { label:"Campeones", color:D.achievement, Icon:Trophy,
-      bg:"linear-gradient(135deg, rgba(201,162,39,0.10), rgba(201,162,39,0.02))",
-      badge:big?60:46, icon:big?34:24, rec:big?15:12, name:big?26:19, vsPar:big?36:23, total:big?26:17 },
-    { label:"Subcampeones", color:"#9AA0A6", Icon:Medal,
-      bg:"linear-gradient(135deg, rgba(154,160,166,0.08), rgba(154,160,166,0.02))",
-      badge:big?48:37, icon:big?26:18, rec:big?13:10.5, name:big?21:16, vsPar:big?28:19, total:big?21:14 },
-    { label:"Tercer puesto", color:"#B08D57", Icon:Medal,
-      bg:"linear-gradient(135deg, rgba(176,141,87,0.08), rgba(176,141,87,0.02))",
-      badge:big?42:32, icon:big?22:15, rec:big?12:9.5, name:big?19:14.5, vsPar:big?24:17, total:big?18:13 },
+  // Leaderboard editorial: la jerarquía surge de tipografía, número y espacio — sin trofeos,
+  // medallas ni esquema oro/plata/bronce. Solo el 1er lugar lleva un acento cromático de marca;
+  // 2do y 3ro se mantienen neutros, distinguidos únicamente por tamaño y peso tipográfico.
+  const RANK = [
+    { color:D.gold, weight:700, num:big?46:32, label:big?13:11, name:big?24:19, nameW:800, sub:big?12:9.5, score:big?32:22, total:big?22:16, avatar:big?44:32, featured:true },
+    { color:D.textSub, weight:300, num:big?32:24, label:big?11:9.5, name:big?19:16, nameW:700, sub:big?11:9, score:big?22:17, total:big?17:13, avatar:big?36:28, featured:false },
+    { color:D.textDim, weight:300, num:big?28:21, label:big?10:9, name:big?17:14.5, nameW:700, sub:big?10.5:8.5, score:big?19:15, total:big?15:12, avatar:big?32:26, featured:false },
   ];
+  const LABELS = ["Campeones","Subcampeones","Tercer puesto"];
   const rowRefs = useRef({});
   const prevPositions = useRef({});
   const prevRanks = useRef({});
@@ -500,63 +496,44 @@ function TablaPosiciones({ torneo, highlightId, big }) {
 
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><Trophy size={14}/> Clasificación</SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación</SLabel>
       {rows.map((u, pos) => {
-        const isPodium = pos < 3;
-        const t = isPodium ? TIERS[pos] : null;
+        const top3 = pos < 3;
+        const r = top3 ? RANK[pos] : null;
         const isMe = u.id === highlightId;
         return (
           <div key={u.id} ref={el => rowRefs.current[u.id]=el}
-            className={isPodium ? "h19-champion-in" : ""}
-            style={isPodium ? {
-              animationDelay:`${pos*80}ms`, display:"flex", alignItems:"center", gap:big?14:10,
-              padding:big?"18px 16px":"12px 12px", marginBottom:8, borderRadius:14, background:t.bg,
-              borderLeft:`3px solid ${t.color}`, borderTop:`1px solid ${t.color}22`, borderRight:`1px solid ${t.color}22`, borderBottom:`1px solid ${t.color}22`,
-              boxShadow: pos===0 ? "0 4px 18px rgba(201,162,39,0.12)" : "0 2px 10px rgba(0,0,0,0.05)",
-              outline: isMe ? `2px solid ${D.gold}` : "none", outlineOffset:2, position:"relative",
-            } : {
-              display:"flex", alignItems:"center", gap:big?16:10, padding:big?"16px 0":"10px 0",
+            className="h19-champion-in" style={{
+              animationDelay:`${Math.min(pos*40,400)}ms`,
+              display:"flex", alignItems:"center", gap:big?16:11,
+              padding: pos===0 ? (big?"22px 14px":"15px 10px") : (big?"14px 14px":"10px 10px"),
               borderBottom:pos<rows.length-1?`1px solid ${D.border}`:"none",
-              background:isMe?D.goldDim+"55":"transparent", position:"relative",
+              background: pos===0 ? "rgba(0,86,63,0.035)" : (isMe ? D.goldDim+"40" : "transparent"),
+              borderLeft: pos===0 ? `2px solid ${D.gold}` : "2px solid transparent",
+              position:"relative",
             }}>
-            {isPodium ? (
-              <>
-                <div className={`h19-badge-in ${pos===0 ? (big?"h19-pulse h19-leader-glow":"h19-pulse") : ""}`} style={{ width:t.badge, height:t.badge, borderRadius:"50%", background:D.surface, border:`1.5px solid ${t.color}55`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <t.Icon size={t.icon} color={t.color} fill={t.color} fillOpacity={0.16} strokeWidth={1.75} />
-                </div>
-                <Avatar name={u.nombre} id={u.id} size={big?40:30} />
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:t.rec, fontWeight:800, letterSpacing:"0.08em", textTransform:"uppercase", color:t.color }}>{t.label}</div>
-                  <div style={{ fontFamily:FONT_DISPLAY, fontSize:t.name, fontWeight:800, color:D.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre}</div>
-                  <div style={{ fontSize:big?12:9.5, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                    {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""}{u.hoyoSalida!=null && <> · salió hoyo {u.hoyoSalida+1}</>}
-                  </div>
-                </div>
-                <div style={{ textAlign:"right", flexShrink:0 }}>
-                  <div style={{ fontSize:t.vsPar, fontWeight:900, lineHeight:1, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</div>
-                  <div style={{ fontFamily:FONT_DISPLAY, fontSize:t.total, fontWeight:700, color:D.text, marginTop:2 }}><CountUp value={u.neto} /></div>
-                  <div style={{ fontSize:big?10:8, color:D.textSub, textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:600 }}>Total</div>
-                  <div style={{ fontSize:big?11:8.5, color:D.textDim, marginTop:1 }}>{u.brutoReal} − {u.hcAplicado}</div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ width:fs.pos, height:fs.pos, borderRadius:"50%", background:D.surface, border:`1px solid ${D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:fs.small+2, fontWeight:900, color:D.textSub, flexShrink:0 }}>{pos+1}</div>
-                <Avatar name={u.nombre} id={u.id} size={fs.avatar} />
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontFamily:FONT_DISPLAY, fontSize:big?20:fs.name, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre} {u.hoyoSalida!=null && <span style={{ fontFamily:FONT_SANS, fontSize:fs.small, color:D.gold, fontWeight:600 }}>· salió hoyo {u.hoyoSalida+1}</span>}</div>
-                  <div style={{ fontSize:fs.sub, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                    {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""} {u.jugadores && u.jugadores.length>1 ? "· " : ""}{u.jugados}/{torneo.pares.length} hoyos
-                  </div>
-                </div>
-                <div style={{ textAlign:"right" }}>
-                  <div style={{ fontSize:fs.sub+6, fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</div>
-                  <div style={{ fontSize:fs.sub, color:D.textSub, whiteSpace:"nowrap" }}>{u.brutoReal} − {u.hcAplicado}</div>
-                  <div style={{ fontSize:fs.total, fontFamily:FONT_DISPLAY, fontWeight:700, color:D.text }}><CountUp value={u.neto} /></div>
-                  <div style={{ fontSize:fs.small, color:D.textSub }}>total</div>
-                </div>
-              </>
-            )}
+            <div style={{ minWidth:top3?(big?54:38):(big?26:20), textAlign:"center", flexShrink:0 }}>
+              <span style={{ fontFamily:FONT_DISPLAY, fontWeight:top3?r.weight:400, fontSize:top3?r.num:(big?18:13), color:top3?r.color:D.textDim, lineHeight:1 }}>
+                {top3 ? String(pos+1).padStart(2,"0") : pos+1}
+              </span>
+            </div>
+            <Avatar name={u.nombre} id={u.id} size={top3?r.avatar:fs.avatar} />
+            <div style={{ flex:1, minWidth:0 }}>
+              {top3 && <div style={{ fontSize:r.label, fontWeight:800, letterSpacing:"0.09em", textTransform:"uppercase", color:r.color, marginBottom:1 }}>{LABELS[pos]}</div>}
+              <div style={{ fontFamily:FONT_DISPLAY, fontSize:top3?r.name:(big?20:fs.name), fontWeight:top3?r.nameW:700, color:D.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                {u.nombre} {!top3 && u.hoyoSalida!=null && <span style={{ fontFamily:FONT_SANS, fontSize:fs.small, color:D.gold, fontWeight:600 }}>· salió hoyo {u.hoyoSalida+1}</span>}
+              </div>
+              <div style={{ fontSize:top3?r.sub:fs.sub, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""}
+                {top3 ? (u.hoyoSalida!=null && <> · salió hoyo {u.hoyoSalida+1}</>) : (<>{u.jugadores && u.jugadores.length>1 ? " · " : ""}{u.jugados}/{torneo.pares.length} hoyos</>)}
+              </div>
+            </div>
+            <div style={{ textAlign:"right", flexShrink:0 }}>
+              <div style={{ fontSize:top3?r.score:fs.sub+6, fontWeight:900, lineHeight:1, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</div>
+              <div style={{ fontSize:top3?(big?10:8):fs.sub, color:D.textDim, whiteSpace:"nowrap", marginTop:top3?3:0 }}>{u.brutoReal} − {u.hcAplicado}</div>
+              <div style={{ fontFamily:FONT_DISPLAY, fontSize:top3?r.total:fs.total, fontWeight:700, color:D.text, marginTop:2 }}><CountUp value={u.neto} /></div>
+              <div style={{ fontSize:top3?(big?9:7.5):fs.small, color:D.textSub, textTransform:top3?"uppercase":"none", letterSpacing:top3?"0.06em":0, fontWeight:top3?600:400 }}>Total</div>
+            </div>
           </div>
         );
       })}
