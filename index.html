@@ -5,12 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>H19T</title>
     <meta name="description" content="H19T — Torneos de golf entre amigos" />
-    <meta name="theme-color" content="#8A6412" />
+    <meta name="theme-color" content="#0A0E14" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&display=swap" rel="stylesheet" />
+    <style>
+      * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+      html, body { background: #0A0E14; }
+      @keyframes fadeInUp { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
+      @keyframes pulseGlow { 0%,100% { box-shadow:0 0 0 0 rgba(143,226,62,0.35);} 50% { box-shadow:0 0 0 12px rgba(143,226,62,0);} }
+      @keyframes gradientShift { 0% {background-position:0% 50%;} 50% {background-position:100% 50%;} 100% {background-position:0% 50%;} }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .h19-card { animation: fadeInUp 420ms cubic-bezier(0.22,1,0.36,1) both; transition: transform 250ms cubic-bezier(0.22,1,0.36,1), box-shadow 250ms cubic-bezier(0.22,1,0.36,1); }
+      .h19-card:active { transform: scale(0.99); }
+      .h19-btn { transition: transform 220ms cubic-bezier(0.22,1,0.36,1), opacity 220ms ease, box-shadow 220ms ease; }
+      .h19-btn:active { transform: scale(0.96); opacity:0.9; }
+      .h19-tab-btn { transition: color 250ms ease; }
+      .h19-tab-indicator { transition: transform 320ms cubic-bezier(0.22,1,0.36,1), width 320ms cubic-bezier(0.22,1,0.36,1), left 320ms cubic-bezier(0.22,1,0.36,1), top 320ms cubic-bezier(0.22,1,0.36,1); }
+      .h19-pulse { animation: pulseGlow 2.4s ease-in-out infinite; }
+      .h19-gradient-move { background-size: 200% 200%; animation: gradientShift 6s ease infinite; }
+      .h19-spin { animation: spin 900ms linear infinite; }
+      ::selection { background: rgba(143,226,62,0.35); }
+    </style>
   </head>
-  <body style="margin:0; background:#F6F1E6;">
+  <body style="margin:0; background:#0A0E14;">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
