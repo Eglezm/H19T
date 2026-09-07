@@ -73,14 +73,14 @@ const GRAD_PRIMARY = "linear-gradient(135deg, #0E7A57 0%, #00563F 100%)";
 const GRAD_ACCENT  = "linear-gradient(135deg, #C9A227 0%, #DCC15A 100%)";
 const GRAD_TEXT_STYLE = { background:GRAD_PRIMARY, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" };
 // Borde de vidrio: solo arriba/izquierda, simulando un reflejo de luz (no uniforme en los 4 lados)
-const GLASS_EDGE = { borderTop:`1px solid ${D.borderGlass}`, borderLeft:`1px solid ${D.borderGlass}`, borderRight:`1px solid ${D.border}`, borderBottom:`1px solid ${D.border}` };
+const GLASS_EDGE = { borderTop:`1px solid ${D.borderGlass}`, borderLeft:`1px solid ${D.borderGlass}`, borderRight:"none", borderBottom:"none" };
 
+// SECCIÓN 3: avatares — solo tonos de verde bosque (sin arcoíris pastel).
+// Fondo #E8F0EC con iniciales #00563F para todos; 3 variantes de verde para diferenciar equipos.
 const COLORS = [
-  {bg:"rgba(46,155,255,0.18)",fg:"#6FB8FF"},{bg:"rgba(61,220,132,0.18)",fg:"#5EEBA3"},
-  {bg:"rgba(255,176,32,0.18)",fg:"#FFC85C"},{bg:"rgba(255,84,112,0.18)",fg:"#FF8CA1"},
-  {bg:"rgba(168,85,247,0.18)",fg:"#C68CFB"},{bg:"rgba(255,45,200,0.16)",fg:"#FF7FDA"},
-  {bg:"rgba(47,217,196,0.18)",fg:"#7BEFDF"},{bg:"rgba(143,226,62,0.18)",fg:"#B6FF6E"},
-  {bg:"rgba(90,120,255,0.18)",fg:"#A6B8FF"},{bg:"rgba(255,120,60,0.18)",fg:"#FFAC85"},
+  {bg:"#E8F0EC",fg:"#00563F"},
+  {bg:"#DCEBE3",fg:"#0E6E4E"},
+  {bg:"#E2EDE6",fg:"#0A5940"},
 ];
 
 const col = (id) => {
@@ -104,7 +104,7 @@ function getBadge(s, par) {
 // triple bogey o peor = doble cuadro (rojo oscuro). Además: al cambiar el valor (anotación
 // en vivo) hace un flash dorado que se desvanece a verde, y aparece con un leve "pop" escalonado.
 function ScoreCell({ s, par, big, index = 0 }) {
-  const fs = big ? 15 : 11;
+  const fs = big ? 30 : 11;
   const prevRef = useRef(s);
   const mountedRef = useRef(false);
   const [flash, setFlash] = useState(false);
@@ -124,7 +124,7 @@ function ScoreCell({ s, par, big, index = 0 }) {
   else if (!par) inner = <span style={{ fontSize:fs, fontWeight:700 }}>{s}</span>;
   else {
     const d = s - par;
-    const outer = big ? 30 : 21;
+    const outer = big ? 48 : 21;
     const innerSize = outer - 6;
     const numSt = { fontSize:fs, fontWeight:700, lineHeight:1 };
     const wrapSt = (size, radius, color) => ({ display:"inline-flex", alignItems:"center", justifyContent:"center", width:size, height:size, borderRadius:radius, border:`1.4px solid ${color}` });
@@ -329,9 +329,11 @@ function Avatar({ name, id, size = 32 }) {
   );
 }
 
-function Card({ children, style = {}, className }) {
+function Card({ children, style = {}, className, tv }) {
+  const blur = tv ? "blur(8px) saturate(140%)" : GLASS_BLUR;
+  const bg = tv ? "rgba(255,255,255,0.85)" : D.card;
   return (
-    <div className={`h19-card ${className||""}`} style={{ background:D.card, backdropFilter:GLASS_BLUR, WebkitBackdropFilter:GLASS_BLUR, ...GLASS_EDGE, borderRadius:16, padding:16, marginBottom:12, boxShadow:SHADOW_CARD, ...style }}>
+    <div className={`h19-card card-glass ${className||""}`} style={{ background:bg, backdropFilter:blur, WebkitBackdropFilter:blur, ...GLASS_EDGE, borderRadius:16, padding:16, marginBottom:12, boxShadow:SHADOW_CARD, ...style }}>
       {children}
     </div>
   );
@@ -441,43 +443,57 @@ function TablaPosiciones({ torneo, highlightId, big }) {
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
   const rowRefs = useRef({});
   const prevPositions = useRef({});
+  const prevRanks = useRef({});
   const orderKey = rows.map(u=>u.id).join(",");
 
-  // Animación FLIP: cuando el orden de la tabla cambia (alguien pasa a otro lugar),
-  // cada fila se desliza fluidamente desde su posición anterior a la nueva, en vez de saltar.
+  // Animación FLIP + franja de cambio de posición (SECCIÓN 6): cuando el orden cambia,
+  // cada fila se desliza (FLIP) Y dispara la franja dorado/verde (sube) o gris (baja)
+  // — ambas en el mismo paso de este efecto, no una después de la otra.
   useLayoutEffect(() => {
     const newPositions = {};
-    rows.forEach(u => {
+    const newRanks = {};
+    rows.forEach((u, idx) => {
       const el = rowRefs.current[u.id];
       if (el) newPositions[u.id] = el.getBoundingClientRect().top;
+      newRanks[u.id] = idx;
     });
     Object.keys(newPositions).forEach(id => {
       const el = rowRefs.current[id];
       const prevTop = prevPositions.current[id];
       const newTop = newPositions[id];
-      if (el && prevTop !== undefined && Math.abs(prevTop-newTop) > 0.5) {
+      const prevRank = prevRanks.current[id];
+      const newRank = newRanks[id];
+      const moved = el && prevTop !== undefined && Math.abs(prevTop-newTop) > 0.5;
+      if (moved) {
         const delta = prevTop - newTop;
         el.style.transition = "none";
         el.style.transform = `translateY(${delta}px)`;
         el.getBoundingClientRect();
+        const subioDePosicion = prevRank !== undefined && newRank < prevRank;
+        el.classList.remove("row-position-change", "row-down");
+        void el.offsetWidth; // fuerza reflow para poder re-disparar la animación cada vez
+        el.classList.add("row-position-change");
+        if (!subioDePosicion) el.classList.add("row-down");
         requestAnimationFrame(() => {
           el.style.transition = "transform 420ms cubic-bezier(0.22,1,0.36,1)";
           el.style.transform = "translateY(0)";
         });
+        setTimeout(() => { el.classList.remove("row-position-change", "row-down"); }, 950);
       }
     });
     prevPositions.current = newPositions;
+    prevRanks.current = newRanks;
   }, [orderKey]);
 
   return (
-    <Card style={big ? { padding:24 } : {}}>
+    <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><Trophy size={14}/> Posiciones</SLabel>
       {rows.map((u, pos) => (
         <div key={u.id} ref={el => rowRefs.current[u.id]=el} style={{ display:"flex", alignItems:"center", gap:big?16:10, padding:big?"16px 0":"10px 0", borderBottom:pos<rows.length-1?`1px solid ${D.border}`:"none", background:u.id===highlightId?D.goldDim+"55":"transparent", position:"relative" }}>
-          <div className={pos===0?"h19-pulse":""} style={{ width:fs.pos, height:fs.pos, borderRadius:"50%", background:pos===0?GRAD_PRIMARY:D.surface, border:`1px solid ${pos===0?"transparent":D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:fs.small+2, fontWeight:900, color:pos===0?"#FBFAF6":D.textSub, flexShrink:0 }}>{pos+1}</div>
+          <div className={pos===0 ? (big ? "h19-pulse h19-leader-glow" : "h19-pulse") : ""} style={{ width:fs.pos, height:fs.pos, borderRadius:"50%", background:pos===0?GRAD_PRIMARY:D.surface, border:`1px solid ${pos===0?"transparent":D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:fs.small+2, fontWeight:900, color:pos===0?"#FBFAF6":D.textSub, flexShrink:0 }}>{pos+1}</div>
           <Avatar name={u.nombre} id={u.id} size={fs.avatar} />
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:FONT_DISPLAY, fontSize:fs.name, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre} {u.hoyoSalida!=null && <span style={{ fontFamily:FONT_SANS, fontSize:fs.small, color:D.gold, fontWeight:600 }}>· salió hoyo {u.hoyoSalida+1}</span>}</div>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:big?20:fs.name, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre} {u.hoyoSalida!=null && <span style={{ fontFamily:FONT_SANS, fontSize:fs.small, color:D.gold, fontWeight:600 }}>· salió hoyo {u.hoyoSalida+1}</span>}</div>
             <div style={{ fontSize:fs.sub, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
               {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""} {u.jugadores && u.jugadores.length>1 ? "· " : ""}{u.jugados}/{torneo.pares.length} hoyos
             </div>
@@ -485,7 +501,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
           <div style={{ textAlign:"right" }}>
             <div style={{ fontSize:fs.sub+6, fontWeight:900, color:colorVsPar(u.vsPar) }}>{fmtVsPar(u.vsPar)}</div>
             <div style={{ fontSize:fs.sub, color:D.textSub, whiteSpace:"nowrap" }}>{u.brutoReal} − {u.hcAplicado}</div>
-            <div style={{ fontSize:fs.total, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos===0?D.gold:D.text }}><CountUp value={u.neto} /></div>
+            <div style={{ fontSize:big?32:fs.total, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos===0?D.gold:D.text }}><CountUp value={u.neto} /></div>
             <div style={{ fontSize:fs.small, color:D.textSub }}>total</div>
           </div>
         </div>
@@ -498,9 +514,9 @@ function TablaPosiciones({ torneo, highlightId, big }) {
 function TarjetaHoyoPorHoyo({ torneo, big }) {
   const rows = leaderboard(torneo);
   const pares = torneo.pares;
-  const fs = big ? 15 : 11;
+  const fs = big ? 20 : 11;
   return (
-    <Card style={big ? { padding:24 } : {}}>
+    <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida</span></SLabel>
       <div style={{ overflowX:"auto" }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, minWidth:pares.length*(big?46:32)+(big?140:90) }}>
@@ -531,9 +547,9 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
           <tbody>
             {rows.map(u => (
               <tr key={u.id} style={{ borderTop:`1px solid ${D.border}` }}>
-                <td style={{ padding:big?"8px 10px":"5px 6px", fontWeight:600, position:"sticky", left:0, background:D.surface, whiteSpace:"nowrap" }}>
-                  <div>{u.nombre}</div>
-                  <div style={{ fontSize:big?12:9, color:D.textDim, fontWeight:400 }}>{(u.jugadores||[]).map(j=>j.name.split(" ")[0]).join(", ")}</div>
+                <td style={{ padding:big?"10px 10px":"5px 6px", fontWeight:600, position:"sticky", left:0, background:D.surface, whiteSpace:"nowrap" }}>
+                  <div style={{ fontFamily:big?FONT_DISPLAY:"inherit", fontSize:big?22:"inherit" }}>{u.nombre}</div>
+                  <div style={{ fontSize:big?13:9, color:D.textDim, fontWeight:400 }}>{(u.jugadores||[]).map(j=>j.name.split(" ")[0]).join(", ")}</div>
                 </td>
                 {pares.map((par, h) => {
                   const s = (u.scores||[])[h];
@@ -545,10 +561,10 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
                     </td>
                   );
                 })}
-                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontFamily:FONT_DISPLAY, fontWeight:700, color:D.gold }}><CountUp value={u.brutoReal} /></td>
-                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:900, color:colorVsPar(u.vsPar), borderLeft:`1px solid ${D.border}` }}>{fmtVsPar(u.vsPar)}</td>
+                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontFamily:FONT_DISPLAY, fontSize:big?28:"inherit", fontWeight:700, color:D.gold }}><CountUp value={u.brutoReal} /></td>
+                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsPar), borderLeft:`1px solid ${D.border}` }}>{fmtVsPar(u.vsPar)}</td>
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:700, color:D.textSub }}>{u.hcAplicado}</td>
-                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>
+                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>
               </tr>
             ))}
           </tbody>
@@ -576,7 +592,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
 function OyesLiveView({ torneo, big }) {
   if (!torneo.oyes || !torneo.oyes.holes || torneo.oyes.holes.length===0) {
     return (
-      <Card style={big ? { padding:24 } : {}}>
+      <Card tv={big} style={big ? { padding:24 } : {}}>
         <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> O'Yes</SLabel>
         <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:big?15:13 }}>Este torneo aún no tiene hoyos de O'Yes configurados.</div>
       </Card>
@@ -592,11 +608,11 @@ function OyesLiveView({ torneo, big }) {
           <div style={{ width:big?36:24, height:big?36:24, borderRadius:"50%", background:pos<premios?D.goldDim:D.surface, border:`1px solid ${pos<premios?D.gold:D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:big?16:12, fontWeight:900, color:pos<premios?D.gold:D.textSub, flexShrink:0 }}>{pos+1}</div>
           <Avatar name={e.jugadorNombre} id={e.jugadorId} size={big?40:28} />
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:big?18:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
+            <div style={{ fontFamily:big?FONT_DISPLAY:"inherit", fontSize:big?22:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
             <div style={{ fontSize:big?13:10, color:D.textSub }}>{e.unidadNombre}{showHole ? ` · Hoyo ${e.holeFisico}` : ""}</div>
           </div>
           {pos<premios && <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4 }}/>}
-          <div style={{ fontSize:big?24:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text }}><CountUp value={e.cm} decimals={Number.isInteger(e.cm)?0:2} /> <span style={{ fontSize:big?13:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
+          <div style={{ fontSize:big?32:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text }}><CountUp value={e.cm} decimals={Number.isInteger(e.cm)?0:2} /> <span style={{ fontSize:big?15:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
         </div>
       ))}
     </>
@@ -604,7 +620,7 @@ function OyesLiveView({ torneo, big }) {
   return (
     <>
       {grupos.map((g, gi) => (
-        <Card key={gi} style={big ? { padding:24 } : {}}>
+        <Card key={gi} tv={big} style={big ? { padding:24 } : {}}>
           <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total)</span></SLabel>
           <RankList ranking={g.ranking} showHole={g.hole===null} />
         </Card>
@@ -617,7 +633,9 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const [loading, setLoading] = useState(true);
   const [tvMode, setTvMode] = useState(vistaInicial !== "todo");
   const [vista, setVista] = useState(vistaInicial); // "todo" | "tarjeta" | "posiciones" | "oyes" | "auto"
-  const [autoSlide, setAutoSlide] = useState(0); // 0 = tarjeta, 1 = oyes
+  const [autoSlide, setAutoSlide] = useState(0); // índice de vista actual en el ciclo automático
+  const [autoPaused, setAutoPaused] = useState(false);
+  const resumeTimerRef = useRef(null);
 
   useEffect(() => {
     const r = ref(db, `torneos/${torneoId}`);
@@ -625,11 +643,32 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
     return () => unsub();
   }, [torneoId]);
 
-  // Modo automático: alterna Tarjeta ↔ O'Yes cada 15 segundos, sin tocar la pantalla
+  const hayOyesFlag = torneo?.oyes?.holes?.length>0;
+  const autoViews = hayOyesFlag ? ["posiciones","tarjeta","oyes"] : ["posiciones","tarjeta"];
+
+  // Modo automático (proyección): cicla Posiciones → Tarjeta → O'Yes cada 12s, con fade+slide.
+  // Corre solo (sin esperar clicks) y se pausa 30s si detecta una interacción táctil reciente.
+  useEffect(() => {
+    if (vista !== "auto" || autoPaused) return;
+    const id = setInterval(() => setAutoSlide(s => (s+1) % autoViews.length), 12000);
+    return () => clearInterval(id);
+  }, [vista, autoPaused, autoViews.length]);
+
+  // Detecta interacción táctil/click durante el auto-rotate: pausa y retoma tras 30s de inactividad
   useEffect(() => {
     if (vista !== "auto") return;
-    const id = setInterval(() => setAutoSlide(s => s===0 ? 1 : 0), 15000);
-    return () => clearInterval(id);
+    const onInteract = () => {
+      setAutoPaused(true);
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+      resumeTimerRef.current = setTimeout(() => setAutoPaused(false), 30000);
+    };
+    window.addEventListener("touchstart", onInteract, { passive:true });
+    window.addEventListener("pointerdown", onInteract);
+    return () => {
+      window.removeEventListener("touchstart", onInteract);
+      window.removeEventListener("pointerdown", onInteract);
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    };
   }, [vista]);
 
   if (loading) return <Spinner label="Conectando..." />;
@@ -639,6 +678,9 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
   const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", minHeight:"100vh", width:"100%", margin:"0 auto" };
   const hayOyes = torneo.oyes?.holes?.length>0;
+  const autoViewActual = autoViews[autoSlide % autoViews.length];
+  const autoViewLabel = { posiciones:"Posiciones", tarjeta:"Tarjeta", oyes:"O'Yes" }[autoViewActual];
+  const autoViewIcon = { posiciones:<Trophy size={13}/>, tarjeta:<ClipboardList size={13}/>, oyes:<Target size={13}/> }[autoViewActual];
 
   return (
     <div style={tvMode ? tvStyle : appStyle}>
@@ -650,15 +692,15 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <option value="tarjeta">Solo Tarjeta</option>
               <option value="posiciones">Solo Posiciones</option>
               {hayOyes && <option value="oyes">Solo O'Yes</option>}
-              {hayOyes && <option value="auto">Automático (Tarjeta ↔ O'Yes)</option>}
+              <option value="auto">Automático (Posiciones → Tarjeta{hayOyes?" → O'Yes":""})</option>
             </select>
           )}
-          <button onClick={() => setTvMode(v => { const next = !v; if (next && hayOyes && vista==="todo") setVista("auto"); return next; })} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
+          <button onClick={() => setTvMode(v => { const next = !v; if (next && vista==="todo") setVista("auto"); return next; })} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
             {tvMode ? <><X size={14}/> Salir de pantalla completa</> : <><Monitor size={14}/> Modo pantalla completa</>}
           </button>
         </div>
         <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?58:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
-        <div style={{ fontSize:tvMode?26:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?38:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
         <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
         <div style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"6px 18px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
           <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:tvMode?9:6, height:tvMode?9:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
@@ -666,13 +708,17 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
         {vista === "auto" && (
           <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:6, padding:"5px 14px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
-            <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoSlide===0 ? <><ClipboardList size={13}/> Mostrando: Tarjeta</> : <><Target size={13}/> Mostrando: O'Yes</>} · cambia cada 15s</span>
+            <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · {autoPaused ? "en pausa (interacción reciente)" : "cambia cada 12s"}</span>
           </div>
         )}
       </div>
-      <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20 } : { padding:"12px 12px 32px" }}>
+      <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20, overflow:"hidden" } : { padding:"12px 12px 32px" }}>
         {vista === "auto" ? (
-          autoSlide === 0 ? <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} /> : <OyesLiveView torneo={torneo} big={tvMode} />
+          <div key={autoSlide} className="h19-tab-panel">
+            {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} />}
+            {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+            {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} />}
+          </div>
         ) : vista === "oyes" ? (
           <OyesLiveView torneo={torneo} big={tvMode} />
         ) : (
