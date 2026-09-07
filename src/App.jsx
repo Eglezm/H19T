@@ -445,9 +445,9 @@ function TablaPosiciones({ torneo, highlightId, big }) {
   // medallas ni esquema oro/plata/bronce. Solo el 1er lugar lleva un acento cromático de marca;
   // 2do y 3ro se mantienen neutros, distinguidos únicamente por tamaño y peso tipográfico.
   const RANK = [
-    { color:D.gold, weight:700, num:big?46:32, label:big?13:11, name:big?24:19, nameW:800, sub:big?12:9.5, score:big?32:22, total:big?22:16, avatar:big?44:32, featured:true },
-    { color:D.textSub, weight:300, num:big?32:24, label:big?11:9.5, name:big?19:16, nameW:700, sub:big?11:9, score:big?22:17, total:big?17:13, avatar:big?36:28, featured:false },
-    { color:D.textDim, weight:300, num:big?28:21, label:big?10:9, name:big?17:14.5, nameW:700, sub:big?10.5:8.5, score:big?19:15, total:big?15:12, avatar:big?32:26, featured:false },
+    { color:"#C9A227", weight:700, num:big?46:32, label:big?13:11, name:big?24:19, nameW:800, sub:big?12:9.5, score:big?32:22, total:big?22:16, avatar:big?44:32, featured:true },
+    { color:"#9AA0A6", weight:300, num:big?32:24, label:big?11:9.5, name:big?19:16, nameW:700, sub:big?11:9, score:big?22:17, total:big?17:13, avatar:big?36:28, featured:false },
+    { color:"#B08D57", weight:300, num:big?28:21, label:big?10:9, name:big?17:14.5, nameW:700, sub:big?10.5:8.5, score:big?19:15, total:big?15:12, avatar:big?32:26, featured:false },
   ];
   const LABELS = ["Campeones","Subcampeones","Tercer puesto"];
   const rowRefs = useRef({});
@@ -508,8 +508,8 @@ function TablaPosiciones({ torneo, highlightId, big }) {
               display:"flex", alignItems:"center", gap:big?16:11,
               padding: pos===0 ? (big?"22px 14px":"15px 10px") : (big?"14px 14px":"10px 10px"),
               borderBottom:pos<rows.length-1?`1px solid ${D.border}`:"none",
-              background: pos===0 ? "rgba(0,86,63,0.035)" : (isMe ? D.goldDim+"40" : "transparent"),
-              borderLeft: pos===0 ? `2px solid ${D.gold}` : "2px solid transparent",
+              background: pos===0 ? "rgba(201,162,39,0.05)" : (isMe ? D.goldDim+"40" : "transparent"),
+              borderLeft: pos===0 ? "2px solid #C9A227" : "2px solid transparent",
               position:"relative",
             }}>
             <div style={{ minWidth:top3?(big?54:38):(big?26:20), textAlign:"center", flexShrink:0 }}>
@@ -525,7 +525,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
               </div>
               <div style={{ fontSize:top3?r.sub:fs.sub, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                 {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""}
-                {top3 ? (u.hoyoSalida!=null && <> · salió hoyo {u.hoyoSalida+1}</>) : (<>{u.jugadores && u.jugadores.length>1 ? " · " : ""}{u.jugados}/{torneo.pares.length} hoyos</>)}
+                {top3 ? (u.hoyoSalida!=null && <> · salió hoyo {u.hoyoSalida+1} · {torneo.pares.length - u.jugados} hoyos por jugar</>) : (<>{u.jugadores && u.jugadores.length>1 ? " · " : ""}{u.jugados}/{torneo.pares.length} hoyos</>)}
               </div>
             </div>
             <div style={{ textAlign:"right", flexShrink:0 }}>
