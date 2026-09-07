@@ -634,8 +634,6 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const [tvMode, setTvMode] = useState(vistaInicial !== "todo");
   const [vista, setVista] = useState(vistaInicial); // "todo" | "tarjeta" | "posiciones" | "oyes" | "auto"
   const [autoSlide, setAutoSlide] = useState(0); // índice de vista actual en el ciclo automático
-  const [autoPaused, setAutoPaused] = useState(false);
-  const resumeTimerRef = useRef(null);
 
   useEffect(() => {
     const r = ref(db, `torneos/${torneoId}`);
@@ -647,29 +645,13 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const autoViews = hayOyesFlag ? ["posiciones","tarjeta","oyes"] : ["posiciones","tarjeta"];
 
   // Modo automático (proyección): cicla Posiciones → Tarjeta → O'Yes cada 12s, con fade+slide.
-  // Corre solo (sin esperar clicks) y se pausa 30s si detecta una interacción táctil reciente.
-  useEffect(() => {
-    if (vista !== "auto" || autoPaused) return;
-    const id = setInterval(() => setAutoSlide(s => (s+1) % autoViews.length), 12000);
-    return () => clearInterval(id);
-  }, [vista, autoPaused, autoViews.length]);
-
-  // Detecta interacción táctil/click durante el auto-rotate: pausa y retoma tras 30s de inactividad
+  // Corre siempre, sin pausarse por interacciones (durante un torneo hay demasiadas como para
+  // que valga la pena pausar — se quedaría pausado casi todo el tiempo).
   useEffect(() => {
     if (vista !== "auto") return;
-    const onInteract = () => {
-      setAutoPaused(true);
-      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-      resumeTimerRef.current = setTimeout(() => setAutoPaused(false), 30000);
-    };
-    window.addEventListener("touchstart", onInteract, { passive:true });
-    window.addEventListener("pointerdown", onInteract);
-    return () => {
-      window.removeEventListener("touchstart", onInteract);
-      window.removeEventListener("pointerdown", onInteract);
-      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-    };
-  }, [vista]);
+    const id = setInterval(() => setAutoSlide(s => (s+1) % autoViews.length), 12000);
+    return () => clearInterval(id);
+  }, [vista, autoViews.length]);
 
   if (loading) return <Spinner label="Conectando..." />;
   if (!torneo) return <Spinner label="Torneo no encontrado" />;
@@ -708,11 +690,11 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
         {vista === "auto" && (
           <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:6, padding:"5px 14px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
-            <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · {autoPaused ? "en pausa (interacción reciente)" : "cambia cada 12s"}</span>
+            <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · cambia cada 12s</span>
           </div>
         )}
       </div>
-      <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20, overflow:"hidden" } : { padding:"12px 12px 32px" }}>
+      <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20 } : { padding:"12px 12px 32px" }}>
         {vista === "auto" ? (
           <div key={autoSlide} className="h19-tab-panel">
             {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} />}
