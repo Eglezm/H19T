@@ -499,7 +499,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
             </div>
           </div>
           <div style={{ textAlign:"right" }}>
-            <div style={{ fontSize:fs.sub+6, fontWeight:900, color:colorVsPar(u.vsPar) }}>{fmtVsPar(u.vsPar)}</div>
+            <div style={{ fontSize:fs.sub+6, fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</div>
             <div style={{ fontSize:fs.sub, color:D.textSub, whiteSpace:"nowrap" }}>{u.brutoReal} − {u.hcAplicado}</div>
             <div style={{ fontSize:big?32:fs.total, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos===0?D.gold:D.text }}><CountUp value={u.neto} /></div>
             <div style={{ fontSize:fs.small, color:D.textSub }}>total</div>
@@ -555,7 +555,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
                   const s = (u.scores||[])[h];
                   const esSalida = u.hoyoSalida === h;
                   return (
-                    <td key={h} style={{ textAlign:"center", padding:big?"8px 4px":"5px 2px", position:"relative", outline:esSalida?`2px solid ${D.gold}`:"none", outlineOffset:-2 }}>
+                    <td key={h} style={{ textAlign:"center", padding:big?"8px 4px":"5px 2px", position:"relative" }}>
                       {esSalida && <Star size={big?12:9} style={{ position:"absolute", top:1, right:2, color:D.gold }} fill={D.gold}/>}
                       <ScoreCell s={s} par={par} big={big} index={h} />
                     </td>
