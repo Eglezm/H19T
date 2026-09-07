@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, remove, get } from "firebase/database";
 import {
@@ -45,28 +45,35 @@ const MODALIDADES = {
 };
 
 const D = {
-  bg: "#0A0E14", surface: "#12161F", card: "rgba(24,29,41,0.72)", border: "rgba(255,255,255,0.09)",
-  gold: "#8FE23E", goldLight: "#B6FF6E", goldDim: "rgba(143,226,62,0.14)",
-  text: "#F3F5F8", textSub: "#9AA3B2", textDim: "#5B6474",
-  green: "#3DDC84", greenBg: "rgba(61,220,132,0.14)", red: "#FF5470", redBg: "rgba(255,84,112,0.14)",
-  success: "#3DDC84", danger: "#FF5470",
+  bg: "#F7F6F2", surface: "#FFFFFF", card: "rgba(255,255,255,0.75)",
+  border: "rgba(0,86,63,0.13)", borderGlass: "rgba(255,255,255,0.65)",
+  // "gold*" es históricamente el nombre del acento principal en todo el código (botones,
+  // pestañas activas, bordes seleccionados). En este diseño editorial el acento de marca
+  // es el verde bosque — el dorado real queda aparte, en D.achievement, de uso mínimo.
+  gold: "#00563F", goldLight: "#0E7A57", goldDim: "rgba(0,86,63,0.08)",
+  achievement: "#C9A227", achievementLight: "#DCC15A", achievementDim: "rgba(201,162,39,0.12)",
+  text: "#1A231D", textSub: "#6C7468", textDim: "#A6AC9C",
+  success: "#0E6E4E", danger: "#A24732",
+  greenBg: "rgba(14,110,78,0.10)", redBg: "rgba(162,71,50,0.10)",
 };
-
-// Serif con carácter de club de golf, reservada para el wordmark, títulos de torneo y
-// números protagonistas. El resto de la interfaz (datos, tablas, botones) usa la sans
-// del sistema, que se lee mejor en tamaños chicos sobre celular.
-const FONT_DISPLAY = "'Space Grotesk', -apple-system, sans-serif";
-const FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-const SHADOW_CARD = "0 1px 0 rgba(255,255,255,0.05) inset, 0 12px 32px rgba(0,0,0,0.45)";
-const SHADOW_BTN = "0 6px 20px rgba(143,226,62,0.25)";
-const GLASS_BLUR = "blur(18px) saturate(140%)";
-// Gradientes vibrantes y orgánicos: lima→azul eléctrico (acción/positivo) y púrpura→verde (destacado)
-const GRAD_PRIMARY = "linear-gradient(135deg, #8FE23E 0%, #2FD9C4 55%, #2E9BFF 100%)";
-const GRAD_ACCENT  = "linear-gradient(135deg, #A855F7 0%, #3DDC84 100%)";
-const GRAD_TEXT_STYLE = { background:GRAD_PRIMARY, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" };
-D.bogey = "#FFB020";
+D.bogey = "#B4863A";
 D.doble = D.danger;
-D.triple = "#FF2D55";
+D.triple = "#7A2E1E";
+
+// Serif editorial (Georgia) para nombres, títulos de torneo y números de score protagonistas.
+// Sans-serif para datos secundarios, navegación y UI general.
+const FONT_DISPLAY = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+const FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const SHADOW_CARD = "0 8px 32px rgba(0,40,25,0.09), inset 0 1px 0 rgba(255,255,255,0.55)";
+const SHADOW_CARD_HEADER = "0 12px 40px rgba(0,40,25,0.12), inset 0 1px 0 rgba(255,255,255,0.6)";
+const SHADOW_BTN = "0 6px 18px rgba(0,86,63,0.24)";
+const GLASS_BLUR = "blur(12px) saturate(140%)";
+const GLASS_BLUR_HEADER = "blur(16px) saturate(150%)";
+const GRAD_PRIMARY = "linear-gradient(135deg, #0E7A57 0%, #00563F 100%)";
+const GRAD_ACCENT  = "linear-gradient(135deg, #C9A227 0%, #DCC15A 100%)";
+const GRAD_TEXT_STYLE = { background:GRAD_PRIMARY, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" };
+// Borde de vidrio: solo arriba/izquierda, simulando un reflejo de luz (no uniforme en los 4 lados)
+const GLASS_EDGE = { borderTop:`1px solid ${D.borderGlass}`, borderLeft:`1px solid ${D.borderGlass}`, borderRight:`1px solid ${D.border}`, borderBottom:`1px solid ${D.border}` };
 
 const COLORS = [
   {bg:"rgba(46,155,255,0.18)",fg:"#6FB8FF"},{bg:"rgba(61,220,132,0.18)",fg:"#5EEBA3"},
@@ -94,33 +101,56 @@ function getBadge(s, par) {
 
 // Notación tradicional de golf para la tarjeta: par = número solo, birdie = círculo,
 // eagle o mejor = doble círculo, bogey = cuadro, doble bogey = doble cuadro (rojo),
-// triple bogey o peor = doble cuadro (rojo oscuro)
-function ScoreCell({ s, par, big }) {
+// triple bogey o peor = doble cuadro (rojo oscuro). Además: al cambiar el valor (anotación
+// en vivo) hace un flash dorado que se desvanece a verde, y aparece con un leve "pop" escalonado.
+function ScoreCell({ s, par, big, index = 0 }) {
   const fs = big ? 15 : 11;
-  if (s === null || s === undefined) return <span style={{ fontSize:fs, color:D.textDim }}>—</span>;
-  if (!par) return <span style={{ fontSize:fs, fontWeight:700 }}>{s}</span>;
-  const d = s - par;
-  const outer = big ? 30 : 21;
-  const inner = outer - 6;
-  const numSt = { fontSize:fs, fontWeight:700, lineHeight:1 };
-  const wrapSt = (size, radius, color) => ({ display:"inline-flex", alignItems:"center", justifyContent:"center", width:size, height:size, borderRadius:radius, border:`1.4px solid ${color}` });
+  const prevRef = useRef(s);
+  const mountedRef = useRef(false);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    if (mountedRef.current && prevRef.current !== s && s !== null && s !== undefined) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 2400);
+      prevRef.current = s;
+      return () => clearTimeout(t);
+    }
+    mountedRef.current = true;
+    prevRef.current = s;
+  }, [s]);
 
-  if (d === 0) return <span style={{ ...numSt, color:D.text }}>{s}</span>;
-  if (d === -1) return <span style={{ ...wrapSt(outer, "50%", D.success), ...numSt, color:D.success }}>{s}</span>; // birdie
-  if (d <= -2) return ( // eagle o mejor
-    <span style={wrapSt(outer+5, "50%", D.gold)}>
-      <span style={{ ...wrapSt(inner, "50%", D.gold), ...numSt, color:D.gold }}>{s}</span>
-    </span>
-  );
-  if (d === 1) return <span style={{ ...wrapSt(outer, 3, D.bogey), ...numSt, color:D.bogey }}>{s}</span>; // bogey
-  if (d === 2) return ( // doble bogey
-    <span style={wrapSt(outer+5, 4, D.doble)}>
-      <span style={{ ...wrapSt(inner, 2, D.doble), ...numSt, color:D.doble }}>{s}</span>
-    </span>
-  );
-  return ( // triple bogey o peor
-    <span style={wrapSt(outer+5, 4, D.triple)}>
-      <span style={{ ...wrapSt(inner, 2, D.triple), ...numSt, color:D.triple }}>{s}</span>
+  let inner;
+  if (s === null || s === undefined) inner = <span style={{ fontSize:fs, color:D.textDim }}>—</span>;
+  else if (!par) inner = <span style={{ fontSize:fs, fontWeight:700 }}>{s}</span>;
+  else {
+    const d = s - par;
+    const outer = big ? 30 : 21;
+    const innerSize = outer - 6;
+    const numSt = { fontSize:fs, fontWeight:700, lineHeight:1 };
+    const wrapSt = (size, radius, color) => ({ display:"inline-flex", alignItems:"center", justifyContent:"center", width:size, height:size, borderRadius:radius, border:`1.4px solid ${color}` });
+    if (d === 0) inner = <span style={{ ...numSt, color:D.text }}>{s}</span>;
+    else if (d === -1) inner = <span style={{ ...wrapSt(outer, "50%", D.success), ...numSt, color:D.success }}>{s}</span>;
+    else if (d <= -2) inner = (
+      <span style={wrapSt(outer+5, "50%", D.gold)}>
+        <span style={{ ...wrapSt(innerSize, "50%", D.gold), ...numSt, color:D.gold }}>{s}</span>
+      </span>
+    );
+    else if (d === 1) inner = <span style={{ ...wrapSt(outer, 3, D.bogey), ...numSt, color:D.bogey }}>{s}</span>;
+    else if (d === 2) inner = (
+      <span style={wrapSt(outer+5, 4, D.doble)}>
+        <span style={{ ...wrapSt(innerSize, 2, D.doble), ...numSt, color:D.doble }}>{s}</span>
+      </span>
+    );
+    else inner = (
+      <span style={wrapSt(outer+5, 4, D.triple)}>
+        <span style={{ ...wrapSt(innerSize, 2, D.triple), ...numSt, color:D.triple }}>{s}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className={`h19-pop ${flash?"h19-flash":""}`} style={{ display:"inline-flex", borderRadius:8, padding:2, animationDelay:`${Math.min(index*25,260)}ms` }}>
+      {inner}
     </span>
   );
 }
@@ -301,20 +331,20 @@ function Avatar({ name, id, size = 32 }) {
 
 function Card({ children, style = {}, className }) {
   return (
-    <div className={`h19-card ${className||""}`} style={{ background:D.card, backdropFilter:GLASS_BLUR, WebkitBackdropFilter:GLASS_BLUR, border:`1px solid ${D.border}`, borderRadius:16, padding:16, marginBottom:12, boxShadow:SHADOW_CARD, ...style }}>
+    <div className={`h19-card ${className||""}`} style={{ background:D.card, backdropFilter:GLASS_BLUR, WebkitBackdropFilter:GLASS_BLUR, ...GLASS_EDGE, borderRadius:16, padding:16, marginBottom:12, boxShadow:SHADOW_CARD, ...style }}>
       {children}
     </div>
   );
 }
 
-// Etiqueta de sección: una barra de acento en degradado en vez del típico eyebrow en MAYÚSCULAS
+// Etiqueta de sección: mayúsculas pequeñas con letter-spacing amplio y gris, estilo editorial
 function SLabel({ children, style = {} }) {
   const { fontSize, ...wrapStyle } = style;
-  const fs = fontSize || 12.5;
+  const fs = fontSize || 11;
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:11, ...wrapStyle }}>
-      <span style={{ width:3, height:fs*1.05, borderRadius:2, background:GRAD_PRIMARY, flexShrink:0 }} />
-      <span style={{ fontSize:fs, fontWeight:700, color:D.text, display:"flex", alignItems:"center", gap:6 }}>{children}</span>
+    <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, textTransform:"uppercase", letterSpacing:"0.09em", ...wrapStyle }}>
+      <span style={{ width:14, height:1.5, background:D.gold, flexShrink:0 }} />
+      <span style={{ fontSize:fs, fontWeight:600, color:D.textSub, display:"flex", alignItems:"center", gap:6 }}>{children}</span>
     </div>
   );
 }
@@ -323,7 +353,7 @@ function Btn({ children, onClick, disabled, outline, danger, style = {} }) {
   return (
     <button
       onClick={onClick} disabled={disabled} className="h19-btn"
-      style={{ width:"100%", padding:14, border:outline ? `1.5px solid ${danger?D.danger:D.gold}` : "none", borderRadius:14, fontSize:15, fontWeight:700, cursor:disabled?"default":"pointer", marginTop:6, background:outline ? "transparent" : danger ? D.danger : GRAD_PRIMARY, color:outline ? (danger?D.danger:D.gold) : "#0A0E14", opacity:disabled?0.4:1, boxShadow:(!outline && !disabled) ? SHADOW_BTN : "none", display:"flex", alignItems:"center", justifyContent:"center", gap:8, ...style }}>
+      style={{ width:"100%", padding:14, border:outline ? `1.5px solid ${danger?D.danger:D.gold}` : "none", borderRadius:14, fontSize:15, fontWeight:700, cursor:disabled?"default":"pointer", marginTop:6, background:outline ? "transparent" : danger ? D.danger : GRAD_PRIMARY, color:outline ? (danger?D.danger:D.gold) : "#FBFAF6", opacity:disabled?0.4:1, boxShadow:(!outline && !disabled) ? SHADOW_BTN : "none", display:"flex", alignItems:"center", justifyContent:"center", gap:8, ...style }}>
       {children}
     </button>
   );
@@ -348,7 +378,7 @@ function TabBar({ tabs, active, onChange }) {
     <div ref={containerRef} style={{ position:"relative", display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
       <div className="h19-tab-indicator" style={{ position:"absolute", left:ind.left, top:ind.top, width:ind.width, height:ind.height, borderRadius:20, background:GRAD_PRIMARY, opacity:ind.ready?1:0, zIndex:0, boxShadow:SHADOW_BTN }} />
       {tabs.map(t => (
-        <button key={t.key} ref={el => btnRefs.current[t.key]=el} onClick={() => onChange(t.key)} className="h19-tab-btn" style={{ position:"relative", zIndex:1, flex:"1 1 auto", padding:"9px 6px", border:"none", borderRadius:20, background:"transparent", color:active===t.key?"#0A0E14":D.textSub, fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, whiteSpace:"nowrap" }}>
+        <button key={t.key} ref={el => btnRefs.current[t.key]=el} onClick={() => onChange(t.key)} className="h19-tab-btn" style={{ position:"relative", zIndex:1, flex:"1 1 auto", padding:"9px 6px", border:"none", borderRadius:20, background:"transparent", color:active===t.key?"#FBFAF6":D.textSub, fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, whiteSpace:"nowrap" }}>
           {t.icon}{t.label}
         </button>
       ))}
@@ -382,10 +412,10 @@ function BottomNav({ tabs, active, onChange }) {
 
   return (
     <div style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:50, display:"flex", justifyContent:"center", padding:"10px 12px calc(10px + env(safe-area-inset-bottom))", pointerEvents:"none" }}>
-      <div ref={containerRef} style={{ position:"relative", display:"flex", gap:4, width:"100%", maxWidth:420, background:"rgba(18,22,31,0.82)", backdropFilter:GLASS_BLUR, WebkitBackdropFilter:GLASS_BLUR, border:`1px solid ${D.border}`, borderRadius:22, padding:5, boxShadow:"0 12px 32px rgba(0,0,0,0.5)", pointerEvents:"auto" }}>
+      <div ref={containerRef} style={{ position:"relative", display:"flex", gap:4, width:"100%", maxWidth:420, background:"rgba(255,255,255,0.78)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, ...GLASS_EDGE, borderRadius:22, padding:5, boxShadow:SHADOW_CARD_HEADER, pointerEvents:"auto" }}>
         <div className="h19-tab-indicator" style={{ position:"absolute", left:ind.left, top:ind.top, width:ind.width, height:ind.height, borderRadius:18, background:GRAD_PRIMARY, opacity:ind.ready?1:0, zIndex:0, boxShadow:SHADOW_BTN }} />
         {tabs.map(t => (
-          <button key={t.key} ref={el => btnRefs.current[t.key]=el} onClick={() => onChange(t.key)} className="h19-tab-btn" style={{ position:"relative", zIndex:1, flex:"1 1 auto", padding:"10px 4px", border:"none", borderRadius:18, background:"transparent", color:active===t.key?"#0A0E14":D.textSub, fontSize:10.5, fontWeight:700, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3 }}>
+          <button key={t.key} ref={el => btnRefs.current[t.key]=el} onClick={() => onChange(t.key)} className="h19-tab-btn" style={{ position:"relative", zIndex:1, flex:"1 1 auto", padding:"10px 4px", border:"none", borderRadius:18, background:"transparent", color:active===t.key?"#FBFAF6":D.textSub, fontSize:10.5, fontWeight:700, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3 }}>
           {t.icon}{t.label}
           </button>
         ))}
@@ -394,7 +424,7 @@ function BottomNav({ tabs, active, onChange }) {
   );
 }
 
-const appStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:D.bg, minHeight:"100vh", maxWidth:420, margin:"0 auto" };
+const appStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", minHeight:"100vh", maxWidth:420, margin:"0 auto" };
 
 function Spinner({ label }) {
   return (
@@ -409,15 +439,45 @@ function Spinner({ label }) {
 function TablaPosiciones({ torneo, highlightId, big }) {
   const rows = leaderboard(torneo);
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
+  const rowRefs = useRef({});
+  const prevPositions = useRef({});
+  const orderKey = rows.map(u=>u.id).join(",");
+
+  // Animación FLIP: cuando el orden de la tabla cambia (alguien pasa a otro lugar),
+  // cada fila se desliza fluidamente desde su posición anterior a la nueva, en vez de saltar.
+  useLayoutEffect(() => {
+    const newPositions = {};
+    rows.forEach(u => {
+      const el = rowRefs.current[u.id];
+      if (el) newPositions[u.id] = el.getBoundingClientRect().top;
+    });
+    Object.keys(newPositions).forEach(id => {
+      const el = rowRefs.current[id];
+      const prevTop = prevPositions.current[id];
+      const newTop = newPositions[id];
+      if (el && prevTop !== undefined && Math.abs(prevTop-newTop) > 0.5) {
+        const delta = prevTop - newTop;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${delta}px)`;
+        el.getBoundingClientRect();
+        requestAnimationFrame(() => {
+          el.style.transition = "transform 420ms cubic-bezier(0.22,1,0.36,1)";
+          el.style.transform = "translateY(0)";
+        });
+      }
+    });
+    prevPositions.current = newPositions;
+  }, [orderKey]);
+
   return (
     <Card style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><Trophy size={14}/> Posiciones</SLabel>
       {rows.map((u, pos) => (
-        <div key={u.id} style={{ display:"flex", alignItems:"center", gap:big?16:10, padding:big?"16px 0":"10px 0", borderBottom:pos<rows.length-1?`1px solid ${D.border}`:"none", background:u.id===highlightId?D.goldDim+"55":"transparent" }}>
-          <div className={pos===0?"h19-pulse":""} style={{ width:fs.pos, height:fs.pos, borderRadius:"50%", background:pos===0?GRAD_PRIMARY:D.surface, border:`1px solid ${pos===0?"transparent":D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:fs.small+2, fontWeight:900, color:pos===0?"#0A0E14":D.textSub, flexShrink:0 }}>{pos+1}</div>
+        <div key={u.id} ref={el => rowRefs.current[u.id]=el} style={{ display:"flex", alignItems:"center", gap:big?16:10, padding:big?"16px 0":"10px 0", borderBottom:pos<rows.length-1?`1px solid ${D.border}`:"none", background:u.id===highlightId?D.goldDim+"55":"transparent", position:"relative" }}>
+          <div className={pos===0?"h19-pulse":""} style={{ width:fs.pos, height:fs.pos, borderRadius:"50%", background:pos===0?GRAD_PRIMARY:D.surface, border:`1px solid ${pos===0?"transparent":D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:fs.small+2, fontWeight:900, color:pos===0?"#FBFAF6":D.textSub, flexShrink:0 }}>{pos+1}</div>
           <Avatar name={u.nombre} id={u.id} size={fs.avatar} />
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:fs.name, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre} {u.hoyoSalida!=null && <span style={{ fontSize:fs.small, color:D.gold, fontWeight:600 }}>· salió hoyo {u.hoyoSalida+1}</span>}</div>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:fs.name, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre} {u.hoyoSalida!=null && <span style={{ fontFamily:FONT_SANS, fontSize:fs.small, color:D.gold, fontWeight:600 }}>· salió hoyo {u.hoyoSalida+1}</span>}</div>
             <div style={{ fontSize:fs.sub, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
               {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""} {u.jugadores && u.jugadores.length>1 ? "· " : ""}{u.jugados}/{torneo.pares.length} hoyos
             </div>
@@ -481,7 +541,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
                   return (
                     <td key={h} style={{ textAlign:"center", padding:big?"8px 4px":"5px 2px", position:"relative", outline:esSalida?`2px solid ${D.gold}`:"none", outlineOffset:-2 }}>
                       {esSalida && <Star size={big?12:9} style={{ position:"absolute", top:1, right:2, color:D.gold }} fill={D.gold}/>}
-                      <ScoreCell s={s} par={par} big={big} />
+                      <ScoreCell s={s} par={par} big={big} index={h} />
                     </td>
                   );
                 })}
@@ -577,12 +637,12 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
 
   const campoNombre = CAMPOS[torneo.campo]?.nombre || torneo.campo;
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
-  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:D.bg, minHeight:"100vh", width:"100%", margin:"0 auto" };
+  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", minHeight:"100vh", width:"100%", margin:"0 auto" };
   const hayOyes = torneo.oyes?.holes?.length>0;
 
   return (
     <div style={tvMode ? tvStyle : appStyle}>
-      <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:tvMode?"32px 24px 24px":"20px 16px 14px", textAlign:"center", position:"relative" }}>
+      <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"32px 24px 24px":"20px 16px 14px", textAlign:"center", position:"relative" }}>
         <div style={{ position:"absolute", top:tvMode?24:14, right:tvMode?24:14, display:"flex", gap:8 }} className="no-print">
           {tvMode && (
             <select value={vista} onChange={e=>setVista(e.target.value)} style={{ padding:"8px 14px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:13, fontWeight:700 }}>
@@ -600,9 +660,9 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?58:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
         <div style={{ fontSize:tvMode?26:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
         <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
-        <div style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"6px 18px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.goldDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.gold}`, borderRadius:20 }}>
-          <div style={{ width:tvMode?9:6, height:tvMode?9:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.gold }} />
-          <span style={{ fontSize:tvMode?15:11, fontWeight:700, color:torneo.status==="finalizada"?D.success:D.gold }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
+        <div style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"6px 18px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
+          <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:tvMode?9:6, height:tvMode?9:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
+          <span style={{ fontSize:tvMode?15:11, fontWeight:700, color:torneo.status==="finalizada"?D.success:D.achievement }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
         </div>
         {vista === "auto" && (
           <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:6, padding:"5px 14px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
@@ -699,7 +759,7 @@ function TeamPlayView({ codigo, onExit }) {
 
   return (
     <div style={appStyle}>
-      <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"14px 16px" }}>
+      <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ fontFamily:FONT_DISPLAY, fontSize:23, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
@@ -726,6 +786,7 @@ function TeamPlayView({ codigo, onExit }) {
         <div style={{ padding:"0 12px 96px" }}>
           <BottomNav tabs={[{key:"marcar",icon:<Pencil size={16}/>,label:"Anotar"},{key:"mio",icon:<Eye size={16}/>,label:"Mi score"},{key:"pos",icon:<Trophy size={16}/>,label:"En vivo"}]} active={tab} onChange={cambiarTab} />
 
+          <div key={tab} className="h19-tab-panel">
           {tab === "marcar" && marcoA && (
             <Card>
               <SLabel>Anotas para: {nombreConJugadores(marcoA)}</SLabel>
@@ -773,6 +834,7 @@ function TeamPlayView({ codigo, onExit }) {
               <TarjetaHoyoPorHoyo torneo={torneo} />
             </>
           )}
+          </div>
         </div>
       )}
     </div>
@@ -850,7 +912,7 @@ function OyesRecordView({ torneoId, onExit }) {
 
   return (
     <div style={appStyle}>
-      <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"14px 16px" }}>
+      <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ fontFamily:FONT_DISPLAY, fontSize:21, fontWeight:700, color:D.gold, display:"flex", alignItems:"center", gap:8 }}><Target size={19}/> Anotar O'Yes</div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
@@ -1329,11 +1391,11 @@ function AdminTorneoApp({ onExit }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
-  const appSt = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:D.bg, minHeight:"100vh", maxWidth:420, margin:"0 auto", paddingBottom:32 };
+  const appSt = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", minHeight:"100vh", maxWidth:420, margin:"0 auto", paddingBottom:32 };
   const tog = (a) => ({ flex:1, padding:9, border:`1px solid ${a?D.gold:D.border}`, borderRadius:10, background:a?D.goldDim:"transparent", color:a?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" });
 
   const Header = ({ title }) => (
-    <div style={{ background:D.surface, borderBottom:`1px solid ${D.border}`, padding:"20px 16px 14px" }}>
+    <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:"20px 16px 14px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ fontFamily:FONT_DISPLAY, fontSize:25, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
         <button onClick={onExit} style={{ fontSize:12, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
