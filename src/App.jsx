@@ -294,6 +294,18 @@ function leaderboard(torneo) {
     .sort((a,b) => a.vsParHc - b.vsParHc);
 }
 
+// Hoyo actual de una unidad: el siguiente después del último hoyo con score registrado,
+// respetando su orden de salida (rotación). Si ya tiene score en todos los hoyos, null (Finalizado).
+function hoyoActualDe(u, totalHoyos) {
+  if (!u || !totalHoyos) return null;
+  const start = u.hoyoSalida ?? 0;
+  for (let i=0; i<totalHoyos; i++) {
+    const h = (start+i) % totalHoyos;
+    if (u.scores?.[h] === null || u.scores?.[h] === undefined) return h+1;
+  }
+  return null;
+}
+
 // ─── UI PRIMITIVAS (mismo lenguaje visual que H19 Golf) ──
 // Número animado: hace count-up desde el valor anterior hasta el nuevo cada vez que cambia
 function CountUp({ value, duration = 650, decimals = 0, style = {} }) {
@@ -501,6 +513,8 @@ function TablaPosiciones({ torneo, highlightId, big }) {
         const top3 = pos < 3;
         const r = top3 ? RANK[pos] : null;
         const isMe = u.id === highlightId;
+        const hAct = hoyoActualDe(u, torneo.pares.length);
+        const estadoHoyo = hAct === null ? "Finalizado" : `Actualmente en hoyo ${hAct}`;
         return (
           <div key={u.id} ref={el => rowRefs.current[u.id]=el}
             className="h19-champion-in" style={{
@@ -525,7 +539,8 @@ function TablaPosiciones({ torneo, highlightId, big }) {
               </div>
               <div style={{ fontSize:top3?r.sub:fs.sub, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                 {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""}
-                {top3 ? (u.hoyoSalida!=null && <> · salió hoyo {u.hoyoSalida+1} · {torneo.pares.length - u.jugados} hoyos por jugar</>) : (<>{u.jugadores && u.jugadores.length>1 ? " · " : ""}{u.jugados}/{torneo.pares.length} hoyos</>)}
+                {top3 ? (u.hoyoSalida!=null && <> · salió hoyo {u.hoyoSalida+1} · {torneo.pares.length - u.jugados} hoyos por jugar</>) : (<>{u.jugadores && u.jugadores.length>1 ? " · " : ""}{u.jugados}/{torneo.pares.length} hoyos · {torneo.pares.length - u.jugados} por jugar</>)}
+                {" · "}{estadoHoyo}
               </div>
             </div>
             <div style={{ textAlign:"right", flexShrink:0 }}>
