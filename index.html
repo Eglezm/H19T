@@ -11,32 +11,48 @@
       html, body { background: #F7F6F2; }
       body { margin:0; overflow-x:hidden; }
 
-      /* ── Fondo con profundidad: mesh gradient animado + topografía + grano ── */
-      #bg-mesh {
-        position: fixed; inset: -10%; z-index: -3; pointer-events: none;
+      /* ── SECCIÓN 1: Fondo dinámico (mesh gradient) — código exacto solicitado ── */
+      .mesh-bg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
         background:
-          radial-gradient(circle at 18% 22%, rgba(0,86,63,0.07) 0%, transparent 42%),
-          radial-gradient(circle at 82% 28%, rgba(201,162,39,0.06) 0%, transparent 40%),
-          radial-gradient(circle at 45% 82%, rgba(0,86,63,0.05) 0%, transparent 48%);
-        background-repeat: no-repeat;
-        animation: meshMove 19s ease-in-out infinite alternate;
+          radial-gradient(circle at 20% 20%, rgba(0,86,63,0.14), transparent 45%),
+          radial-gradient(circle at 80% 30%, rgba(201,162,39,0.12), transparent 45%),
+          radial-gradient(circle at 50% 80%, rgba(0,86,63,0.09), transparent 50%);
+        background-size: 200% 200%;
+        animation: meshShift 18s ease-in-out infinite alternate;
       }
-      @keyframes meshMove {
-        0%   { background-position: 0% 0%, 100% 10%, 30% 100%; }
-        100% { background-position: 15% 25%, 75% 35%, 55% 75%; }
+      @keyframes meshShift {
+        0%   { background-position: 0% 0%; }
+        50%  { background-position: 40% 60%; }
+        100% { background-position: 70% 20%; }
       }
-      #bg-topo { position: fixed; inset: 0; z-index: -2; width: 100%; height: 100%; opacity: 0.045; pointer-events: none; }
-      #bg-grain { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; opacity: 0.03; pointer-events: none; mix-blend-mode: multiply; }
+      /* Capas adicionales de profundidad: topografía (4-5%) y grano (3%), por encima del mesh */
+      #bg-topo { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; opacity: 0.045; pointer-events: none; }
+      #bg-grain { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; opacity: 0.03; pointer-events: none; mix-blend-mode: multiply; }
+      /* El contenedor de contenido de la app va por encima de las capas de fondo */
+      #root { position: relative; z-index: 1; }
 
-      /* ── Animaciones de interacción ── */
+      /* ── SECCIÓN 2: Glassmorphism moderado — código exacto solicitado (solo tarjetas grandes) ── */
+      .card-glass {
+        background: rgba(255,255,255,0.75);
+        backdrop-filter: blur(12px) saturate(140%);
+        border-top: 1px solid rgba(255,255,255,0.6);
+        border-left: 1px solid rgba(255,255,255,0.6);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5);
+      }
       @keyframes fadeInUp { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
       @keyframes liveDotPulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.5); opacity:0.55; } }
       @keyframes achievementGlow { 0%,100% { box-shadow:0 0 0 0 rgba(201,162,39,0.35);} 50% { box-shadow:0 0 0 10px rgba(201,162,39,0);} }
       @keyframes gradientShift { 0% {background-position:0% 50%;} 50% {background-position:100% 50%;} 100% {background-position:0% 50%;} }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes scoreFlash {
-        0%   { background-color: rgba(201,162,39,0.38); }
-        100% { background-color: rgba(0,86,63,0); }
+        0%   { background-color: rgba(201,162,39,0.38); transform: scale(1.14); }
+        25%  { transform: scale(1); }
+        100% { background-color: rgba(0,86,63,0); transform: scale(1); }
       }
       @keyframes popIn { from { opacity:0; transform:scale(0.9); } to { opacity:1; transform:scale(1); } }
       @keyframes tabSlideIn { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
@@ -55,10 +71,39 @@
       .h19-pop { animation: popIn 320ms cubic-bezier(0.22,1,0.36,1) both; }
       .h19-tab-panel { animation: tabSlideIn 300ms cubic-bezier(0.22,1,0.36,1) both; }
       .h19-reorder-row { transition: transform 420ms cubic-bezier(0.22,1,0.36,1); }
+
+      /* ── SECCIÓN 6: Franja de cambio de posición — código exacto solicitado ── */
+      .row-position-change {
+        position: relative;
+        overflow: hidden;
+      }
+      .row-position-change::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, rgba(201,162,39,0.35), transparent);
+        transform: scaleY(0);
+        transform-origin: bottom;
+        animation: sweepUp 0.6s ease-out forwards, fadeOut 0.3s ease-out 0.6s forwards;
+        pointer-events: none;
+      }
+      /* Variante: baja de posición → gris apagado, nunca rojo */
+      .row-position-change.row-down::after {
+        background: linear-gradient(to top, rgba(108,116,104,0.28), transparent);
+      }
+      @keyframes sweepUp { to { transform: scaleY(1); } }
+      @keyframes fadeOut { to { opacity: 0; } }
+      /* El número de posición hace un pequeño cambio sincronizado con el barrido */
+      @keyframes badgePulse { 0% { transform:scale(1); } 30% { transform:scale(1.18); } 100% { transform:scale(1); } }
+      .row-position-change > div:first-child { animation: badgePulse 0.6s ease-out; }
+      /* Glow que respira alrededor de la tarjeta del líder, en modo pantalla completa (proyección) */
+      @keyframes leaderBreathe { 0%,100% { box-shadow:0 0 0 0 rgba(201,162,39,0.28); opacity:1; } 50% { box-shadow:0 0 22px 6px rgba(201,162,39,0.22); opacity:0.96; } }
+      .h19-leader-glow { animation: leaderBreathe 3.6s ease-in-out infinite; }
       ::selection { background: rgba(0,86,63,0.18); }
     </style>
   </head>
   <body>
+    <div class="mesh-bg"></div>
     <svg id="bg-topo" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <pattern id="topoPattern" width="420" height="420" patternUnits="userSpaceOnUse">
@@ -79,7 +124,6 @@
       </filter>
       <rect width="100%" height="100%" filter="url(#grainFilter)"/>
     </svg>
-    <div id="bg-mesh"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
