@@ -281,10 +281,14 @@ function colorVsPar(n) {
   return n < 0 ? D.success : n > 0 ? D.danger : D.textSub;
 }
 
-// Formatea distancias de O'Yes: muestra hasta 2 decimales, sin ceros de más (18, 18.5, 18.25)
+// Formatea distancias de O'Yes: SIEMPRE exactamente 2 decimales (28 → 28.00, 11.5 → 11.50)
 function fmtCm(cm) {
-  const n = Math.round(cm * 100) / 100;
-  return Number.isInteger(n) ? String(n) : String(n).replace(/0+$/,"").replace(/\.$/,"");
+  return (Math.round(cm * 100) / 100).toFixed(2);
+}
+
+// Formatea la hora de captura del O'Yes a partir del timestamp real guardado (nunca inventada)
+function fmtHora(ts) {
+  return new Date(ts).toLocaleTimeString("es-MX", { hour:"numeric", minute:"2-digit", hour12:true });
 }
 
 function leaderboard(torneo) {
@@ -514,7 +518,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
         const r = top3 ? RANK[pos] : null;
         const isMe = u.id === highlightId;
         const hAct = hoyoActualDe(u, torneo.pares.length);
-        const estadoHoyo = hAct === null ? "Finalizado" : `Actualmente en hoyo ${hAct}`;
+        const estadoHoyo = hAct === null ? "Finalizado" : `Jugando hoyo ${hAct}`;
         return (
           <div key={u.id} ref={el => rowRefs.current[u.id]=el}
             className="h19-champion-in" style={{
@@ -535,12 +539,14 @@ function TablaPosiciones({ torneo, highlightId, big }) {
             <div style={{ flex:1, minWidth:0 }}>
               {top3 && <div style={{ fontSize:r.label, fontWeight:800, letterSpacing:"0.09em", textTransform:"uppercase", color:r.color, marginBottom:1 }}>{LABELS[pos]}</div>}
               <div style={{ fontFamily:FONT_DISPLAY, fontSize:top3?r.name:(big?20:fs.name), fontWeight:top3?r.nameW:700, color:D.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                {u.nombre} {!top3 && u.hoyoSalida!=null && <span style={{ fontFamily:FONT_SANS, fontSize:fs.small, color:D.gold, fontWeight:600 }}>· salió hoyo {u.hoyoSalida+1}</span>}
+                {u.nombre}
               </div>
-              <div style={{ fontSize:top3?r.sub:fs.sub, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                {u.jugadores && u.jugadores.length>1 ? u.jugadores.map(j=>j.name).join(", ") : ""}
-                {top3 ? (u.hoyoSalida!=null && <> · salió hoyo {u.hoyoSalida+1} · {torneo.pares.length - u.jugados} hoyos por jugar</>) : (<>{u.jugadores && u.jugadores.length>1 ? " · " : ""}{u.jugados}/{torneo.pares.length} hoyos · {torneo.pares.length - u.jugados} por jugar</>)}
-                {" · "}{estadoHoyo}
+              <div style={{ fontSize:top3?(big?15:12.5):(big?13:11), fontWeight:500, color:"#44503F", marginTop:2, lineHeight:1.5 }}>
+                {u.jugadores && u.jugadores.length>1 && <span>{u.jugadores.map(j=>j.name).join(", ")}</span>}
+                {u.hoyoSalida!=null && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Salió hoyo {u.hoyoSalida+1}</>}
+                <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{torneo.pares.length - u.jugados} hoyos por jugar
+                <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>
+                <span style={{ fontWeight:800, color: hAct===null ? D.success : D.gold }}>{estadoHoyo}</span>
               </div>
             </div>
             <div style={{ textAlign:"right", flexShrink:0 }}>
@@ -655,10 +661,14 @@ function OyesLiveView({ torneo, big }) {
           <Avatar name={e.jugadorNombre} id={e.jugadorId} size={big?40:28} />
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontFamily:big?FONT_DISPLAY:"inherit", fontSize:big?22:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
-            <div style={{ fontSize:big?13:10, color:D.textSub }}>{e.unidadNombre}{showHole ? ` · Hoyo ${e.holeFisico}` : ""}</div>
+            <div style={{ fontSize:big?15:12, fontWeight:500, color:"#44503F", marginTop:2 }}>
+              {e.unidadNombre}
+              <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Hoyo {e.holeFisico}
+              {e.ts && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{fmtHora(e.ts)}</>}
+            </div>
           </div>
-          {pos<premios && <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4 }}/>}
-          <div style={{ fontSize:big?32:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text }}><CountUp value={e.cm} decimals={Number.isInteger(e.cm)?0:2} /> <span style={{ fontSize:big?15:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
+          {pos<premios && <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4, flexShrink:0 }}/>}
+          <div style={{ fontSize:big?32:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text, minWidth:big?150:96, textAlign:"right", fontVariantNumeric:"tabular-nums", flexShrink:0 }}><CountUp value={e.cm} decimals={2} /> <span style={{ fontSize:big?15:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
         </div>
       ))}
     </>
@@ -1446,9 +1456,13 @@ function AdminTorneoApp({ onExit }) {
     setScreen("resultados");
   };
 
-  const shareTorneo = () => {
+  const verEnVivo = () => {
     const url = `${window.location.origin}${window.location.pathname}?torneo=${torneoId}`;
-    if (navigator.clipboard) { navigator.clipboard.writeText(url); setShareMsg("¡Link copiado!"); setTimeout(()=>setShareMsg(""),2500); }
+    const nueva = window.open(url, "_blank", "noopener,noreferrer");
+    try { if (navigator.clipboard) navigator.clipboard.writeText(url); } catch(e) {}
+    if (nueva) { setShareMsg("Vista en vivo abierta ✓ (link también copiado)"); }
+    else { setShareMsg("El navegador bloqueó la ventana — copia el link manualmente"); }
+    setTimeout(()=>setShareMsg(""), 3500);
   };
 
   const compartirCodigoIndividual = (u) => {
@@ -1925,7 +1939,7 @@ function AdminTorneoApp({ onExit }) {
         <div style={{ padding:"12px 12px" }}>
           <TabBar tabs={adminTabs} active="live" onChange={setScreen} />
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-            <button onClick={shareTorneo} style={{ flex:1, padding:"10px", border:`1px solid ${D.gold}`, borderRadius:12, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:"pointer" }}><Share2 size={13}/> Compartir link espectador</button>
+            <button onClick={verEnVivo} style={{ flex:1, padding:"10px", border:`1px solid ${D.gold}`, borderRadius:12, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:"pointer" }}><Share2 size={13}/> Ver en vivo / Compartir link</button>
           </div>
           {shareMsg && <div style={{ textAlign:"center", color:D.success, fontSize:12, marginBottom:8 }}>{shareMsg}</div>}
           <div style={{ textAlign:"center", fontSize:11, color:D.textSub, marginBottom:10 }}>Código de torneo: <b style={{ color:D.gold }}>{torneoId}</b></div>
