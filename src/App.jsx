@@ -223,7 +223,7 @@ function clasificacionOyes(torneo) {
       const cur = map[e.jugadorId];
       if (!cur || e.cm < cur.cm) map[e.jugadorId] = e;
     });
-    return Object.values(map).sort((a,b) => a.cm - b.cm);
+    return Object.values(map).sort((a,b) => a.cm - b.cm || (a.ts||0) - (b.ts||0));
   };
   if (modo === "hoyo") {
     const holes = (torneo.oyes?.holes || []).slice().sort((a,b)=>a-b);
@@ -291,11 +291,44 @@ function fmtHora(ts) {
   return new Date(ts).toLocaleTimeString("es-MX", { hour:"numeric", minute:"2-digit", hour12:true });
 }
 
+// ─── DESEMPATE (Tie-Break) — lógica única y centralizada ──
+// Secuencia oficial de Score: Score Final → Hoyo 10→18 → Acumulado 1-9 → Hoyo 1→9 → Empate oficial.
+// No usa alfabético, ID, orden de registro ni ningún criterio aleatorio.
+function compararDesempateScore(a, b, pares) {
+  const n = pares.length;
+  if (n >= 18) {
+    // Fase 1: hoyo por hoyo, 10 → 18 (índices 9..17)
+    for (let h = 9; h <= 17; h++) {
+      const sa = a.scores?.[h], sb = b.scores?.[h];
+      if (sa != null && sb != null && sa !== sb) return sa - sb;
+    }
+    // Fase 2: score acumulado de los hoyos 1-9 (índices 0..8)
+    let sumA = 0, sumB = 0;
+    for (let h = 0; h <= 8; h++) {
+      sumA += a.scores?.[h] ?? 0;
+      sumB += b.scores?.[h] ?? 0;
+    }
+    if (sumA !== sumB) return sumA - sumB;
+    // Fase 3: hoyo por hoyo, 1 → 9
+    for (let h = 0; h <= 8; h++) {
+      const sa = a.scores?.[h], sb = b.scores?.[h];
+      if (sa != null && sb != null && sa !== sb) return sa - sb;
+    }
+  } else {
+    // Torneos de menos de 18 hoyos: countback directo hoyo por hoyo, 1 → N
+    for (let h = 0; h < n; h++) {
+      const sa = a.scores?.[h], sb = b.scores?.[h];
+      if (sa != null && sb != null && sa !== sb) return sa - sb;
+    }
+  }
+  return 0; // Empate oficial — se mantiene el empate, sin criterios adicionales
+}
+
 function leaderboard(torneo) {
   if (!torneo || !torneo.unidades || !torneo.pares) return [];
   return Object.values(torneo.unidades)
     .map(u => ({ ...u, ...calcTotales(u, torneo.pares) }))
-    .sort((a,b) => a.vsParHc - b.vsParHc);
+    .sort((a,b) => a.vsParHc - b.vsParHc || compararDesempateScore(a, b, torneo.pares));
 }
 
 // Hoyo actual de una unidad: el siguiente después del último hoyo con score registrado,
