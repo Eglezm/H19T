@@ -499,6 +499,14 @@ function TablaPosiciones({ torneo, highlightId, big }) {
     { color:"#B08D57", weight:300, num:big?28:21, label:big?10:9, name:big?17:14.5, nameW:700, sub:big?10.5:8.5, score:big?19:15, total:big?15:12, avatar:big?32:26, featured:false },
   ];
   const LABELS = ["Campeones","Subcampeones","Tercer puesto"];
+  // Fondo metálico sutil por posición (oro / plata / bronce) — baja saturación, con un
+  // ligero degradado para dar sensación de metal sin llamar la atención del resto de la tabla.
+  const TIER_BG = [
+    "linear-gradient(135deg, rgba(201,162,39,0.075), rgba(201,162,39,0.02))",
+    "linear-gradient(135deg, rgba(154,160,166,0.10), rgba(154,160,166,0.03))",
+    "linear-gradient(135deg, rgba(176,141,87,0.09), rgba(176,141,87,0.03))",
+  ];
+  const TIER_BORDER = ["#C9A227", "#9AA0A6", "#B08D57"];
   const rowRefs = useRef({});
   const prevPositions = useRef({});
   const prevRanks = useRef({});
@@ -557,10 +565,11 @@ function TablaPosiciones({ torneo, highlightId, big }) {
             className="h19-champion-in" style={{
               animationDelay:`${Math.min(pos*40,400)}ms`,
               display:"flex", alignItems:"center", gap:big?16:11,
-              padding: pos===0 ? (big?"22px 14px":"15px 10px") : (big?"14px 14px":"10px 10px"),
+              padding: top3 ? (big?"15px 14px":"11px 10px") : (big?"14px 14px":"10px 10px"),
               borderBottom:pos<rows.length-1?`1px solid ${D.border}`:"none",
-              background: pos===0 ? "rgba(201,162,39,0.05)" : (isMe ? D.goldDim+"40" : "transparent"),
-              borderLeft: pos===0 ? "2px solid #C9A227" : "2px solid transparent",
+              background: top3 ? TIER_BG[pos] : (isMe ? D.goldDim+"40" : "transparent"),
+              borderLeft: top3 ? `2px solid ${TIER_BORDER[pos]}` : "2px solid transparent",
+              outline: (isMe && top3) ? `2px solid ${D.gold}` : "none", outlineOffset:-2,
               position:"relative",
             }}>
             <div style={{ minWidth:top3?(big?54:38):(big?26:20), textAlign:"center", flexShrink:0 }}>
