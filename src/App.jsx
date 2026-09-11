@@ -6,6 +6,7 @@ import {
   Printer, Link2, X, Trash2, Star, ArrowLeftRight, RefreshCw, Eye, MessageCircle,
   Monitor, Ban, Clock, Ruler, Layers, Sparkles, ClipboardList, AlertTriangle,
   Undo2, KeyRound, Tv, Share2, LogOut, Plus, Minus, MapPin, ListChecks, Medal, ListOrdered,
+  Image as ImageIcon, Building2, Handshake,
 } from "lucide-react";
 
 // ─── FIREBASE ──────────────────────────────────────
@@ -486,6 +487,32 @@ function Spinner({ label }) {
   );
 }
 
+// Logo del campo y/o del torneo, para llenar el encabezado con identidad visual.
+// Si no hay logo configurado para un lado, ese espacio simplemente no se renderiza
+// (no rompe el layout de quienes aún no hayan subido nada).
+function EncabezadoLogos({ torneo, big, side }) {
+  const url = side === "campo" ? torneo?.logos?.campo : torneo?.logos?.torneo;
+  if (!url) return null;
+  const size = big ? 76 : 40;
+  return (
+    <img src={url} alt={side==="campo"?"Logo del campo":"Logo del torneo"} style={{ height:size, maxWidth:size*1.8, objectFit:"contain", borderRadius:8 }} onError={e=>{e.target.style.display="none";}} />
+  );
+}
+
+// Franja de logos de patrocinadores — discreta, solo aparece si el admin configuró al menos uno.
+function FranjaPatrocinadores({ torneo, big }) {
+  const logos = (torneo?.logos?.patrocinadores || []).filter(Boolean);
+  if (logos.length === 0) return null;
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:big?28:16, padding:big?"16px 12px":"10px 8px", opacity:0.85 }}>
+      {!big && <span style={{ fontSize:9, color:D.textDim, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, width:"100%", textAlign:"center", marginBottom:2 }}>Patrocinado por</span>}
+      {logos.map((url, i) => (
+        <img key={i} src={url} alt={`Patrocinador ${i+1}`} style={{ height:big?46:22, maxWidth:big?150:88, objectFit:"contain" }} onError={e=>{e.target.style.display="none";}} />
+      ))}
+    </div>
+  );
+}
+
 // ─── TARJETA DE POSICIONES (reutilizable) ─────────
 function TablaPosiciones({ torneo, highlightId, big }) {
   const rows = leaderboard(torneo);
@@ -779,9 +806,15 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             {tvMode ? <><X size={14}/> Salir de pantalla completa</> : <><Monitor size={14}/> Modo pantalla completa</>}
           </button>
         </div>
-        <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?58:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
-        <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?38:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
-        <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:tvMode?28:14 }}>
+          <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?58:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?38:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
+            <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
+          </div>
+          <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
+        </div>
         <div style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"6px 18px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
           <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:tvMode?9:6, height:tvMode?9:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
           <span style={{ fontSize:tvMode?14:10, fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", color:torneo.status==="finalizada"?D.success:D.achievement }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
@@ -791,6 +824,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · cambia cada 12s</span>
           </div>
         )}
+        <FranjaPatrocinadores torneo={torneo} big={tvMode} />
       </div>
       <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20 } : { padding:"12px 12px 32px" }}>
         {vista === "auto" ? (
@@ -887,7 +921,10 @@ function TeamPlayView({ codigo, onExit }) {
     <div style={appStyle}>
       <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontFamily:FONT_DISPLAY, fontSize:23, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:23, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+            <EncabezadoLogos torneo={torneo} big={false} side="campo" />
+          </div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre} · {campoNombre}</div>
@@ -1230,6 +1267,11 @@ function AdminTorneoApp({ onExit }) {
   const [oyesHoles, setOyesHoles] = useState([]);
   const [oyesPremios, setOyesPremios] = useState(3);
   const [oyesSyncedFor, setOyesSyncedFor] = useState(null);
+  const [logoCampo, setLogoCampo] = useState("");
+  const [logoTorneo, setLogoTorneo] = useState("");
+  const [logoPatrocinadores, setLogoPatrocinadores] = useState([]);
+  const [nuevoPatrocinador, setNuevoPatrocinador] = useState("");
+  const [logosSyncedFor, setLogosSyncedFor] = useState(null);
 
   // Elimina una ronda del historial, y de paso limpia el torneo original y sus códigos si aún existen
   const eliminarHistorialEntry = (r) => {
@@ -1312,6 +1354,18 @@ function AdminTorneoApp({ onExit }) {
       setOyesSyncedFor(torneoId);
     }
   }, [torneo, torneoId, oyesSyncedFor]);
+
+  // Sincroniza el formulario de logos con lo guardado en el torneo, solo la primera vez que se carga
+  useEffect(() => {
+    if (torneo && torneoId && logosSyncedFor !== torneoId) {
+      if (torneo.logos) {
+        setLogoCampo(torneo.logos.campo || "");
+        setLogoTorneo(torneo.logos.torneo || "");
+        setLogoPatrocinadores(torneo.logos.patrocinadores || []);
+      }
+      setLogosSyncedFor(torneoId);
+    }
+  }, [torneo, torneoId, logosSyncedFor]);
 
   const saveDir = (newPlayers, newNidVal) => set(ref(db, "h19tDirectorio"), { players:newPlayers, nextId:newNidVal||nid });
   const addPlayer = () => {
@@ -1466,6 +1520,20 @@ function AdminTorneoApp({ onExit }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
+  // ── LOGOS ──
+  const guardarLogos = () => {
+    set(ref(db, `torneos/${torneoId}/logos`), {
+      campo: logoCampo.trim(), torneo: logoTorneo.trim(),
+      patrocinadores: logoPatrocinadores.filter(Boolean),
+    });
+    setGuardadoOk("✓ Logos guardados"); setTimeout(()=>setGuardadoOk(""), 2000);
+  };
+  const agregarPatrocinador = () => {
+    const url = nuevoPatrocinador.trim(); if (!url) return;
+    setLogoPatrocinadores(prev => [...prev, url]); setNuevoPatrocinador("");
+  };
+  const quitarPatrocinador = (i) => setLogoPatrocinadores(prev => prev.filter((_,idx) => idx!==i));
+
   const iniciarTorneo = () => { set(ref(db, `torneos/${torneoId}/status`), "en_juego"); };
 
   // El admin puede corregir/capturar el score de CUALQUIER unidad, en cualquier hoyo
@@ -1544,6 +1612,7 @@ function AdminTorneoApp({ onExit }) {
     {key:"grupos",icon:<Link2 size={14}/>,label:"Grupos y códigos"},
     {key:"captura",icon:<Pencil size={14}/>,label:"Capturar"},
     {key:"oyes",icon:<Target size={14}/>,label:"O'Yes"},
+    {key:"logos",icon:<ImageIcon size={14}/>,label:"Logos"},
     {key:"imprimir",icon:<Printer size={14}/>,label:"Imprimir"},
     {key:"live",icon:<Trophy size={14}/>,label:"En vivo"},
   ];
@@ -1933,6 +2002,57 @@ function AdminTorneoApp({ onExit }) {
               <OyesLiveView torneo={torneo} />
             </>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── LOGOS ──
+  if (screen==="logos" && torneo) {
+    return (
+      <div style={appSt}>
+        <Header title={torneo.nombre} />
+        <div style={{ padding:"12px 12px" }}>
+          <TabBar tabs={adminTabs} active="logos" onChange={setScreen} />
+
+          <Card>
+            <SLabel><ImageIcon size={13}/> Cómo funciona</SLabel>
+            <div style={{ fontSize:12, color:D.textSub, lineHeight:1.5 }}>
+              Pega la URL de una imagen ya subida a internet (tu sitio del club, Google Drive con enlace público, imgur, etc). Esta app no aloja archivos, así que necesitas el link directo a la imagen — se recomienda fondo transparente (PNG) para que se vea bien sobre el fondo claro.
+            </div>
+          </Card>
+
+          {guardadoOk && <div style={{ textAlign:"center", color:D.success, fontSize:12, fontWeight:600, marginBottom:8 }}>{guardadoOk}</div>}
+
+          <Card>
+            <SLabel><Building2 size={13}/> Logo del campo</SLabel>
+            <input value={logoCampo} onChange={e=>setLogoCampo(e.target.value)} placeholder="https://..." style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box", marginBottom:10 }} />
+            {logoCampo && <img src={logoCampo} alt="Vista previa" style={{ height:50, maxWidth:160, objectFit:"contain" }} onError={e=>{e.target.style.opacity=0.2;}} />}
+          </Card>
+
+          <Card>
+            <SLabel><Flag size={13}/> Logo del torneo</SLabel>
+            <input value={logoTorneo} onChange={e=>setLogoTorneo(e.target.value)} placeholder="https://..." style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box", marginBottom:10 }} />
+            {logoTorneo && <img src={logoTorneo} alt="Vista previa" style={{ height:50, maxWidth:160, objectFit:"contain" }} onError={e=>{e.target.style.opacity=0.2;}} />}
+          </Card>
+
+          <Card>
+            <SLabel><Handshake size={13}/> Logos de patrocinadores</SLabel>
+            <div style={{ fontSize:11, color:D.textSub, marginBottom:10 }}>Aparecen en una franja discreta debajo del encabezado, tanto en la vista compacta como en pantalla completa.</div>
+            {logoPatrocinadores.map((url, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${D.border}` }}>
+                <img src={url} alt="" style={{ height:28, maxWidth:80, objectFit:"contain" }} onError={e=>{e.target.style.opacity=0.2;}} />
+                <div style={{ flex:1, fontSize:11, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{url}</div>
+                <button onClick={() => quitarPatrocinador(i)} style={{ padding:"4px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><X size={12}/></button>
+              </div>
+            ))}
+            <div style={{ display:"flex", gap:8, marginTop:10 }}>
+              <input value={nuevoPatrocinador} onChange={e=>setNuevoPatrocinador(e.target.value)} placeholder="https://... (nuevo logo)" style={{ flex:1, padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
+              <button onClick={agregarPatrocinador} style={{ padding:"10px 14px", border:`1px solid ${D.gold}`, borderRadius:10, background:D.goldDim, color:D.gold, fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={14}/></button>
+            </div>
+          </Card>
+
+          <Btn onClick={guardarLogos}>Guardar logos</Btn>
         </div>
       </div>
     );
