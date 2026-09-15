@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, remove, get } from "firebase/database";
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from "firebase/storage";
 import {
   Target, Trophy, Check, Flag, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pencil, User, Users,
   Printer, Link2, X, Trash2, Star, ArrowLeftRight, RefreshCw, Eye, MessageCircle,
@@ -26,6 +27,7 @@ const firebaseConfig = {
 };
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getDatabase(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const ADMIN_PIN = "1919";
 
@@ -174,6 +176,70 @@ function genCodigo(usados) {
 
 function genPassword() {
   return Math.random().toString(36).substring(2,6).toUpperCase();
+}
+
+// ─── LOGOS: compatibilidad entre el formato viejo (string=URL) y el nuevo (objeto con path) ──
+function getLogoUrl(value) {
+  return typeof value === "string" ? value : (value?.url || "");
+}
+function getLogoPath(value) {
+  return typeof value === "string" ? "" : (value?.path || "");
+}
+// Normaliza la lista de patrocinadores: convierte strings antiguos a objetos, deja los nuevos igual
+function normalizarPatrocinadores(lista) {
+  return (lista || []).map((item, index) =>
+    typeof item === "string"
+      ? { id:`legacy-${index}`, nombre:"", url:item, path:"", name:"", type:"", updatedAt:0 }
+      : item
+  );
+}
+// Borra recursivamente todo el contenido de una carpeta de Firebase Storage (usado al
+// eliminar un torneo por completo). No debe bloquear la app si algo falla en el camino.
+async function deleteStorageFolder(folderPath) {
+  try {
+    const folderRef = storageRef(storage, folderPath);
+    const result = await listAll(folderRef);
+    await Promise.allSettled(result.items.map(itemRef => deleteObject(itemRef)));
+    await Promise.allSettled(result.prefixes.map(prefixRef => deleteStorageFolder(prefixRef.fullPath)));
+  } catch (e) { /* silencioso: si la carpeta no existe o falla, no bloquea la app */ }
+}
+
+// Redimensiona/comprime una imagen en el propio navegador y la devuelve como data URI (base64),
+// para poder guardarla directo en Realtime Database sin depender de Firebase Storage (que
+// requiere el plan Blaze). Los SVG se dejan intactos (son vectores, ya son ligeros y no se
+// deben rasterizar). PNG conserva transparencia; JPG/otros se comprimen como JPEG.
+function comprimirImagen(file, maxDim = 700, calidad = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (file.type === "image/svg+xml") {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+      reader.readAsDataURL(file);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onerror = () => reject(new Error("No se pudo procesar la imagen"));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        const tipoSalida = file.type === "image/png" ? "image/png" : "image/jpeg";
+        resolve(canvas.toDataURL(tipoSalida, calidad));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 // Lista de "hoyos físicos" disponibles para O'Yes. En campos de 9 hoyos jugados dos
@@ -489,9 +555,11 @@ function Spinner({ label }) {
 
 // Logo del campo y/o del torneo, para llenar el encabezado con identidad visual.
 // Si no hay logo configurado para un lado, ese espacio simplemente no se renderiza
-// (no rompe el layout de quienes aún no hayan subido nada).
+// (no rompe el layout de quienes aún no hayan subido nada). Compatible con el formato
+// viejo (string = URL directa) y el nuevo (objeto {url, path, name, type, updatedAt}).
 function EncabezadoLogos({ torneo, big, side }) {
-  const url = side === "campo" ? torneo?.logos?.campo : torneo?.logos?.torneo;
+  const raw = side === "campo" ? torneo?.logos?.campo : torneo?.logos?.torneo;
+  const url = getLogoUrl(raw);
   if (!url) return null;
   const size = big ? 76 : 40;
   return (
@@ -500,14 +568,15 @@ function EncabezadoLogos({ torneo, big, side }) {
 }
 
 // Franja de logos de patrocinadores — discreta, solo aparece si el admin configuró al menos uno.
+// Compatible con patrocinadores guardados como string (formato viejo) u objeto (formato nuevo).
 function FranjaPatrocinadores({ torneo, big }) {
-  const logos = (torneo?.logos?.patrocinadores || []).filter(Boolean);
-  if (logos.length === 0) return null;
+  const items = normalizarPatrocinadores(torneo?.logos?.patrocinadores).map(p => ({ ...p, urlResuelta: getLogoUrl(p) })).filter(p => p.urlResuelta);
+  if (items.length === 0) return null;
   return (
     <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:big?28:16, padding:big?"16px 12px":"10px 8px", opacity:0.85 }}>
       {!big && <span style={{ fontSize:9, color:D.textDim, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, width:"100%", textAlign:"center", marginBottom:2 }}>Patrocinado por</span>}
-      {logos.map((url, i) => (
-        <img key={i} src={url} alt={`Patrocinador ${i+1}`} style={{ height:big?46:22, maxWidth:big?150:88, objectFit:"contain" }} onError={e=>{e.target.style.display="none";}} />
+      {items.map((p, i) => (
+        <img key={p.id||i} src={p.urlResuelta} alt={p.nombre || `Patrocinador ${i+1}`} style={{ height:big?46:22, maxWidth:big?150:88, objectFit:"contain" }} onError={e=>{e.target.style.display="none";}} />
       ))}
     </div>
   );
@@ -1267,20 +1336,27 @@ function AdminTorneoApp({ onExit }) {
   const [oyesHoles, setOyesHoles] = useState([]);
   const [oyesPremios, setOyesPremios] = useState(3);
   const [oyesSyncedFor, setOyesSyncedFor] = useState(null);
-  const [logoCampo, setLogoCampo] = useState("");
-  const [logoTorneo, setLogoTorneo] = useState("");
-  const [logoPatrocinadores, setLogoPatrocinadores] = useState([]);
-  const [nuevoPatrocinador, setNuevoPatrocinador] = useState("");
+  const [logoCampoObj, setLogoCampoObj] = useState(null);
+  const [logoTorneoObj, setLogoTorneoObj] = useState(null);
+  const [patrocinadoresList, setPatrocinadoresList] = useState([]);
   const [logosSyncedFor, setLogosSyncedFor] = useState(null);
+  const [uploadState, setUploadState] = useState({}); // { [slotKey]: {uploading, progress, error, preview} }
+  const [nombreNuevoPatrocinador, setNombreNuevoPatrocinador] = useState("");
+  const [confirmEliminarLogo, setConfirmEliminarLogo] = useState(null); // "campo" | "torneo" | sponsorId
+  const [pendingSponsorTarget, setPendingSponsorTarget] = useState(null); // "new" | sponsorId
+  const inputCampoRef = useRef(null);
+  const inputTorneoRef = useRef(null);
+  const sponsorFileInputRef = useRef(null);
 
   // Elimina una ronda del historial, y de paso limpia el torneo original y sus códigos si aún existen
   const eliminarHistorialEntry = (r) => {
     get(ref(db, `torneos/${r.id}`)).then(snap => {
       const codigosDelTorneo = snap.exists() ? Object.values(snap.val().unidades||{}).filter(u=>u.codigo).map(u=>u.codigo) : [];
-      Promise.all([
+      Promise.allSettled([
         ...codigosDelTorneo.map(c => remove(ref(db, `codigos/${c}`))),
         remove(ref(db, `torneos/${r.id}`)),
         remove(ref(db, `torneoHistorial/${r.id}`)),
+        deleteStorageFolder(`torneos/${r.id}`),
       ]);
     });
     setConfirmDeleteHist(null);
@@ -1355,13 +1431,14 @@ function AdminTorneoApp({ onExit }) {
     }
   }, [torneo, torneoId, oyesSyncedFor]);
 
-  // Sincroniza el formulario de logos con lo guardado en el torneo, solo la primera vez que se carga
+  // Sincroniza el formulario de logos con lo guardado en el torneo, solo la primera vez que se carga.
+  // Funciona tanto con el formato viejo (string=URL) como el nuevo (objeto con path).
   useEffect(() => {
     if (torneo && torneoId && logosSyncedFor !== torneoId) {
       if (torneo.logos) {
-        setLogoCampo(torneo.logos.campo || "");
-        setLogoTorneo(torneo.logos.torneo || "");
-        setLogoPatrocinadores(torneo.logos.patrocinadores || []);
+        setLogoCampoObj(torneo.logos.campo || null);
+        setLogoTorneoObj(torneo.logos.torneo || null);
+        setPatrocinadoresList(normalizarPatrocinadores(torneo.logos.patrocinadores));
       }
       setLogosSyncedFor(torneoId);
     }
@@ -1386,6 +1463,7 @@ function AdminTorneoApp({ onExit }) {
       campo, nHoles, pares, modalidad, hcPercent,
       status: "armado", createdAt: Date.now(), updatedAt: Date.now(),
       unidades: {},
+      logos: { campo:null, torneo:null, patrocinadores:[] },
     };
     set(ref(db, `torneos/${tid}`), nuevo);
     setTorneoId(tid); setTorneo(nuevo);
@@ -1397,9 +1475,10 @@ function AdminTorneoApp({ onExit }) {
   // Elimina un torneo por completo (útil para pruebas). Limpia también sus códigos de acceso.
   const eliminarTorneo = (t) => {
     const codigosDelTorneo = Object.values(t.unidades||{}).filter(u=>u.codigo).map(u=>u.codigo);
-    Promise.all([
+    Promise.allSettled([
       ...codigosDelTorneo.map(c => remove(ref(db, `codigos/${c}`))),
       remove(ref(db, `torneos/${t.id}`)),
+      deleteStorageFolder(`torneos/${t.id}`),
     ]).then(() => {
       if (torneoId === t.id) { setTorneoId(null); setTorneo(null); setScreen("dir"); }
     });
@@ -1520,19 +1599,103 @@ function AdminTorneoApp({ onExit }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
-  // ── LOGOS ──
-  const guardarLogos = () => {
-    set(ref(db, `torneos/${torneoId}/logos`), {
-      campo: logoCampo.trim(), torneo: logoTorneo.trim(),
-      patrocinadores: logoPatrocinadores.filter(Boolean),
+  // ── LOGOS (procesadas en el navegador y guardadas directo en Realtime Database — sin Storage/Blaze) ──
+  const TIPOS_PERMITIDOS = ["image/png", "image/jpeg", "image/svg+xml"];
+  const MAX_TAMANO_ENTRADA = 10 * 1024 * 1024; // 10 MB de archivo original permitido
+  const MAX_TAMANO_FINAL = 450 * 1024; // ~450 KB tras comprimir: se guarda dentro del torneo, hay que mantenerlo ligero
+
+  // Procesa (comprime) la imagen en el propio navegador y la guarda directo en Realtime Database.
+  // slotKey identifica el elemento en uploadState ("campo", "torneo", o el id del patrocinador).
+  // "path" se conserva vacío (ya no hay archivo en Storage que borrar al reemplazar/eliminar).
+  const subirImagen = (file, slotKey, path, onDone) => {
+    if (!file) return;
+    if (!TIPOS_PERMITIDOS.includes(file.type)) {
+      setUploadState(s => ({ ...s, [slotKey]: { uploading:false, progress:0, error:"Formato no permitido. Usa PNG, JPG o SVG.", preview:null } }));
+      return;
+    }
+    if (file.size > MAX_TAMANO_ENTRADA) {
+      setUploadState(s => ({ ...s, [slotKey]: { uploading:false, progress:0, error:"El archivo pesa más de 10 MB.", preview:null } }));
+      return;
+    }
+    const localPreview = URL.createObjectURL(file);
+    setUploadState(s => ({ ...s, [slotKey]: { uploading:true, progress:30, error:"", preview:localPreview } }));
+    comprimirImagen(file)
+      .then(dataUri => {
+        if (dataUri.length > MAX_TAMANO_FINAL) {
+          setUploadState(s => ({ ...s, [slotKey]: { uploading:false, progress:0, error:"La imagen sigue siendo muy pesada incluso comprimida. Prueba con una más simple o de menor resolución.", preview:null } }));
+          URL.revokeObjectURL(localPreview);
+          return;
+        }
+        setUploadState(s => ({ ...s, [slotKey]: { ...s[slotKey], progress:80 } }));
+        onDone({ url:dataUri, path:"", name:file.name, type:file.type, updatedAt:Date.now() });
+        setUploadState(s => ({ ...s, [slotKey]: { uploading:false, progress:100, error:"", preview:null } }));
+        URL.revokeObjectURL(localPreview);
+      })
+      .catch(() => {
+        setUploadState(s => ({ ...s, [slotKey]: { uploading:false, progress:0, error:"No fue posible procesar la imagen. Inténtalo de nuevo con otro archivo.", preview:null } }));
+        URL.revokeObjectURL(localPreview);
+      });
+  };
+
+  const subirLogoCampo = (file) => {
+    const oldPath = getLogoPath(logoCampoObj);
+    const newPath = `torneos/${torneoId}/logo-campo`;
+    subirImagen(file, "campo", newPath, (data) => {
+      set(ref(db, `torneos/${torneoId}/logos/campo`), data);
+      setLogoCampoObj(data);
+      if (oldPath && oldPath !== newPath) deleteObject(storageRef(storage, oldPath)).catch(()=>{});
     });
-    setGuardadoOk("✓ Logos guardados"); setTimeout(()=>setGuardadoOk(""), 2000);
   };
-  const agregarPatrocinador = () => {
-    const url = nuevoPatrocinador.trim(); if (!url) return;
-    setLogoPatrocinadores(prev => [...prev, url]); setNuevoPatrocinador("");
+  const subirLogoTorneo = (file) => {
+    const oldPath = getLogoPath(logoTorneoObj);
+    const newPath = `torneos/${torneoId}/logo-torneo`;
+    subirImagen(file, "torneo", newPath, (data) => {
+      set(ref(db, `torneos/${torneoId}/logos/torneo`), data);
+      setLogoTorneoObj(data);
+      if (oldPath && oldPath !== newPath) deleteObject(storageRef(storage, oldPath)).catch(()=>{});
+    });
   };
-  const quitarPatrocinador = (i) => setLogoPatrocinadores(prev => prev.filter((_,idx) => idx!==i));
+  const eliminarLogoCampo = () => {
+    const path = getLogoPath(logoCampoObj);
+    if (path) deleteObject(storageRef(storage, path)).catch(()=>{});
+    remove(ref(db, `torneos/${torneoId}/logos/campo`));
+    setLogoCampoObj(null); setConfirmEliminarLogo(null);
+  };
+  const eliminarLogoTorneo = () => {
+    const path = getLogoPath(logoTorneoObj);
+    if (path) deleteObject(storageRef(storage, path)).catch(()=>{});
+    remove(ref(db, `torneos/${torneoId}/logos/torneo`));
+    setLogoTorneoObj(null); setConfirmEliminarLogo(null);
+  };
+
+  const guardarPatrocinadores = (nuevaLista) => {
+    setPatrocinadoresList(nuevaLista);
+    set(ref(db, `torneos/${torneoId}/logos/patrocinadores`), nuevaLista);
+  };
+  const agregarPatrocinadorArchivo = (file) => {
+    const sponsorId = `sponsor_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    const path = `torneos/${torneoId}/patrocinadores/${sponsorId}`;
+    const nombre = nombreNuevoPatrocinador.trim();
+    subirImagen(file, sponsorId, path, (data) => {
+      const nuevo = { id:sponsorId, nombre, ...data };
+      guardarPatrocinadores([...patrocinadoresList, nuevo]);
+      setNombreNuevoPatrocinador("");
+    });
+  };
+  const reemplazarPatrocinador = (id, file) => {
+    const actual = patrocinadoresList.find(p => p.id === id);
+    const path = getLogoPath(actual) || `torneos/${torneoId}/patrocinadores/${id}`;
+    subirImagen(file, id, path, (data) => {
+      guardarPatrocinadores(patrocinadoresList.map(p => p.id === id ? { ...p, ...data } : p));
+    });
+  };
+  const eliminarPatrocinador = (id) => {
+    const actual = patrocinadoresList.find(p => p.id === id);
+    const path = getLogoPath(actual);
+    if (path) deleteObject(storageRef(storage, path)).catch(()=>{});
+    guardarPatrocinadores(patrocinadoresList.filter(p => p.id !== id));
+    setConfirmEliminarLogo(null);
+  };
 
   const iniciarTorneo = () => { set(ref(db, `torneos/${torneoId}/status`), "en_juego"); };
 
@@ -2009,50 +2172,124 @@ function AdminTorneoApp({ onExit }) {
 
   // ── LOGOS ──
   if (screen==="logos" && torneo) {
+    const stCampo = uploadState.campo || {};
+    const stTorneo = uploadState.torneo || {};
+    const stNew = uploadState.new || {};
     return (
       <div style={appSt}>
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
           <TabBar tabs={adminTabs} active="logos" onChange={setScreen} />
 
+          <input ref={inputCampoRef} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display:"none" }} onChange={e => { const f=e.target.files[0]; if (f) subirLogoCampo(f); e.target.value=""; }} />
+          <input ref={inputTorneoRef} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display:"none" }} onChange={e => { const f=e.target.files[0]; if (f) subirLogoTorneo(f); e.target.value=""; }} />
+          <input ref={sponsorFileInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display:"none" }} onChange={e => {
+            const f = e.target.files[0];
+            if (f) { if (pendingSponsorTarget === "new") agregarPatrocinadorArchivo(f); else if (pendingSponsorTarget) reemplazarPatrocinador(pendingSponsorTarget, f); }
+            e.target.value = ""; setPendingSponsorTarget(null);
+          }} />
+
           <Card>
-            <SLabel><ImageIcon size={13}/> Cómo funciona</SLabel>
-            <div style={{ fontSize:12, color:D.textSub, lineHeight:1.5 }}>
-              Pega la URL de una imagen ya subida a internet (tu sitio del club, Google Drive con enlace público, imgur, etc). Esta app no aloja archivos, así que necesitas el link directo a la imagen — se recomienda fondo transparente (PNG) para que se vea bien sobre el fondo claro.
-            </div>
+            <div style={{ fontSize:11, color:D.textSub, lineHeight:1.5 }}>Elige la imagen desde tu galería o archivos — se comprime automáticamente y se guarda al instante, sin necesidad de subirla a ningún otro lado. Para mejores resultados, usa imágenes simples (logos, no fotos) — funcionan mejor cuanto más ligeras sean.</div>
           </Card>
 
-          {guardadoOk && <div style={{ textAlign:"center", color:D.success, fontSize:12, fontWeight:600, marginBottom:8 }}>{guardadoOk}</div>}
-
+          {/* Logo del campo */}
           <Card>
             <SLabel><Building2 size={13}/> Logo del campo</SLabel>
-            <input value={logoCampo} onChange={e=>setLogoCampo(e.target.value)} placeholder="https://..." style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box", marginBottom:10 }} />
-            {logoCampo && <img src={logoCampo} alt="Vista previa" style={{ height:50, maxWidth:160, objectFit:"contain" }} onError={e=>{e.target.style.opacity=0.2;}} />}
-          </Card>
-
-          <Card>
-            <SLabel><Flag size={13}/> Logo del torneo</SLabel>
-            <input value={logoTorneo} onChange={e=>setLogoTorneo(e.target.value)} placeholder="https://..." style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box", marginBottom:10 }} />
-            {logoTorneo && <img src={logoTorneo} alt="Vista previa" style={{ height:50, maxWidth:160, objectFit:"contain" }} onError={e=>{e.target.style.opacity=0.2;}} />}
-          </Card>
-
-          <Card>
-            <SLabel><Handshake size={13}/> Logos de patrocinadores</SLabel>
-            <div style={{ fontSize:11, color:D.textSub, marginBottom:10 }}>Aparecen en una franja discreta debajo del encabezado, tanto en la vista compacta como en pantalla completa.</div>
-            {logoPatrocinadores.map((url, i) => (
-              <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${D.border}` }}>
-                <img src={url} alt="" style={{ height:28, maxWidth:80, objectFit:"contain" }} onError={e=>{e.target.style.opacity=0.2;}} />
-                <div style={{ flex:1, fontSize:11, color:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{url}</div>
-                <button onClick={() => quitarPatrocinador(i)} style={{ padding:"4px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><X size={12}/></button>
+            {logoCampoObj && !stCampo.uploading && (
+              <img src={getLogoUrl(logoCampoObj)} alt="Logo del campo" style={{ height:56, maxWidth:180, objectFit:"contain", marginBottom:10, display:"block" }} />
+            )}
+            {stCampo.uploading && (
+              <div style={{ marginBottom:10 }}>
+                {stCampo.preview && <img src={stCampo.preview} alt="" style={{ height:56, maxWidth:180, objectFit:"contain", opacity:0.55, marginBottom:6, display:"block" }} />}
+                <div style={{ fontSize:11, color:D.textSub, marginBottom:4 }}>Subiendo… {stCampo.progress}%</div>
+                <div style={{ height:6, background:D.border, borderRadius:3, overflow:"hidden" }}><div style={{ height:"100%", width:`${stCampo.progress}%`, background:GRAD_PRIMARY, transition:"width 200ms" }} /></div>
               </div>
-            ))}
-            <div style={{ display:"flex", gap:8, marginTop:10 }}>
-              <input value={nuevoPatrocinador} onChange={e=>setNuevoPatrocinador(e.target.value)} placeholder="https://... (nuevo logo)" style={{ flex:1, padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
-              <button onClick={agregarPatrocinador} style={{ padding:"10px 14px", border:`1px solid ${D.gold}`, borderRadius:10, background:D.goldDim, color:D.gold, fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={14}/></button>
+            )}
+            {stCampo.error && <div style={{ fontSize:11, color:D.danger, marginBottom:8 }}>{stCampo.error}</div>}
+            {!logoCampoObj && !stCampo.uploading && !stCampo.error && <div style={{ fontSize:11, color:D.textDim, marginBottom:10 }}>Aún no hay logo del campo</div>}
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => inputCampoRef.current.click()} disabled={stCampo.uploading} style={{ flex:1, padding:10, border:`1px solid ${D.gold}`, borderRadius:10, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:stCampo.uploading?"default":"pointer", opacity:stCampo.uploading?0.5:1 }}>{logoCampoObj ? "Reemplazar imagen" : "Seleccionar imagen"}</button>
+              {logoCampoObj && !stCampo.uploading && (confirmEliminarLogo==="campo" ? (
+                <>
+                  <button onClick={eliminarLogoCampo} style={{ padding:"10px 12px", border:`1px solid ${D.danger}`, borderRadius:10, background:D.redBg, color:D.danger, fontSize:12, fontWeight:700, cursor:"pointer" }}>Confirmar</button>
+                  <button onClick={() => setConfirmEliminarLogo(null)} style={{ padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Cancelar</button>
+                </>
+              ) : (
+                <button onClick={() => setConfirmEliminarLogo("campo")} style={{ padding:"10px 12px", border:`1px solid ${D.danger}44`, borderRadius:10, background:"transparent", color:D.danger, cursor:"pointer" }}><Trash2 size={14}/></button>
+              ))}
             </div>
           </Card>
 
-          <Btn onClick={guardarLogos}>Guardar logos</Btn>
+          {/* Logo del torneo */}
+          <Card>
+            <SLabel><Flag size={13}/> Logo del torneo</SLabel>
+            {logoTorneoObj && !stTorneo.uploading && (
+              <img src={getLogoUrl(logoTorneoObj)} alt="Logo del torneo" style={{ height:56, maxWidth:180, objectFit:"contain", marginBottom:10, display:"block" }} />
+            )}
+            {stTorneo.uploading && (
+              <div style={{ marginBottom:10 }}>
+                {stTorneo.preview && <img src={stTorneo.preview} alt="" style={{ height:56, maxWidth:180, objectFit:"contain", opacity:0.55, marginBottom:6, display:"block" }} />}
+                <div style={{ fontSize:11, color:D.textSub, marginBottom:4 }}>Subiendo… {stTorneo.progress}%</div>
+                <div style={{ height:6, background:D.border, borderRadius:3, overflow:"hidden" }}><div style={{ height:"100%", width:`${stTorneo.progress}%`, background:GRAD_PRIMARY, transition:"width 200ms" }} /></div>
+              </div>
+            )}
+            {stTorneo.error && <div style={{ fontSize:11, color:D.danger, marginBottom:8 }}>{stTorneo.error}</div>}
+            {!logoTorneoObj && !stTorneo.uploading && !stTorneo.error && <div style={{ fontSize:11, color:D.textDim, marginBottom:10 }}>Aún no hay logo del torneo</div>}
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => inputTorneoRef.current.click()} disabled={stTorneo.uploading} style={{ flex:1, padding:10, border:`1px solid ${D.gold}`, borderRadius:10, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:stTorneo.uploading?"default":"pointer", opacity:stTorneo.uploading?0.5:1 }}>{logoTorneoObj ? "Reemplazar imagen" : "Seleccionar imagen"}</button>
+              {logoTorneoObj && !stTorneo.uploading && (confirmEliminarLogo==="torneo" ? (
+                <>
+                  <button onClick={eliminarLogoTorneo} style={{ padding:"10px 12px", border:`1px solid ${D.danger}`, borderRadius:10, background:D.redBg, color:D.danger, fontSize:12, fontWeight:700, cursor:"pointer" }}>Confirmar</button>
+                  <button onClick={() => setConfirmEliminarLogo(null)} style={{ padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Cancelar</button>
+                </>
+              ) : (
+                <button onClick={() => setConfirmEliminarLogo("torneo")} style={{ padding:"10px 12px", border:`1px solid ${D.danger}44`, borderRadius:10, background:"transparent", color:D.danger, cursor:"pointer" }}><Trash2 size={14}/></button>
+              ))}
+            </div>
+          </Card>
+
+          {/* Patrocinadores */}
+          <Card>
+            <SLabel><Handshake size={13}/> Patrocinadores</SLabel>
+            <div style={{ fontSize:11, color:D.textSub, marginBottom:10 }}>Aparecen en una franja debajo del encabezado, tanto en la vista compacta como en pantalla completa.</div>
+            {patrocinadoresList.map(p => {
+              const st = uploadState[p.id] || {};
+              return (
+                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:`1px solid ${D.border}` }}>
+                  <img src={st.preview || getLogoUrl(p)} alt={p.nombre||""} style={{ height:32, maxWidth:70, objectFit:"contain", opacity:st.uploading?0.5:1, flexShrink:0 }} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.nombre || "Sin nombre"}</div>
+                    {st.uploading && <div style={{ fontSize:10, color:D.textSub }}>Subiendo… {st.progress}%</div>}
+                    {st.error && <div style={{ fontSize:10, color:D.danger }}>{st.error}</div>}
+                  </div>
+                  <button onClick={() => { setPendingSponsorTarget(p.id); sponsorFileInputRef.current.click(); }} disabled={st.uploading} style={{ padding:"5px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:10, cursor:"pointer", flexShrink:0 }}>Reemplazar</button>
+                  {confirmEliminarLogo===p.id ? (
+                    <>
+                      <button onClick={() => eliminarPatrocinador(p.id)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}`, borderRadius:8, background:D.redBg, color:D.danger, fontSize:10, fontWeight:700, cursor:"pointer" }}>Sí</button>
+                      <button onClick={() => setConfirmEliminarLogo(null)} style={{ padding:"5px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:10, cursor:"pointer" }}>No</button>
+                    </>
+                  ) : (
+                    <button onClick={() => setConfirmEliminarLogo(p.id)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, cursor:"pointer" }}><X size={12}/></button>
+                  )}
+                </div>
+              );
+            })}
+            {patrocinadoresList.length===0 && <div style={{ fontSize:11, color:D.textDim, padding:"8px 0" }}>Aún no hay patrocinadores</div>}
+
+            <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${D.border}` }}>
+              <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Agregar nuevo patrocinador</div>
+              <input value={nombreNuevoPatrocinador} onChange={e=>setNombreNuevoPatrocinador(e.target.value)} placeholder="Nombre (opcional)" style={{ width:"100%", padding:"9px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box", marginBottom:8 }} />
+              {stNew.uploading && (
+                <div style={{ marginBottom:8 }}>
+                  <div style={{ fontSize:11, color:D.textSub, marginBottom:4 }}>Subiendo… {stNew.progress}%</div>
+                  <div style={{ height:6, background:D.border, borderRadius:3, overflow:"hidden" }}><div style={{ height:"100%", width:`${stNew.progress}%`, background:GRAD_PRIMARY }} /></div>
+                </div>
+              )}
+              {stNew.error && <div style={{ fontSize:11, color:D.danger, marginBottom:8 }}>{stNew.error}</div>}
+              <button onClick={() => { setPendingSponsorTarget("new"); sponsorFileInputRef.current.click(); }} disabled={stNew.uploading} style={{ width:"100%", padding:10, border:`1px solid ${D.gold}`, borderRadius:10, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:stNew.uploading?"default":"pointer", opacity:stNew.uploading?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Plus size={14}/> Seleccionar imagen</button>
+            </div>
+          </Card>
         </div>
       </div>
     );
