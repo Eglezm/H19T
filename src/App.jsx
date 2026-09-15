@@ -587,7 +587,7 @@ function FranjaPatrocinadores({ torneo, big }) {
     <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:big?28:16, padding:big?"16px 12px":"10px 8px", opacity:0.85 }}>
       {!big && <span style={{ fontSize:9, color:D.textDim, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, width:"100%", textAlign:"center", marginBottom:2 }}>Patrocinado por</span>}
       {items.map((p, i) => (
-        <img key={p.id||i} src={p.urlResuelta} alt={p.nombre || `Patrocinador ${i+1}`} style={{ height:big?46:22, maxWidth:big?150:88, objectFit:"contain" }} onError={e=>{e.target.style.display="none";}} />
+        <img key={p.id||i} src={p.urlResuelta} alt={p.nombre || `Patrocinador ${i+1}`} style={{ width:big?120:70, height:big?46:22, objectFit:"contain" }} onError={e=>{e.target.style.display="none";}} />
       ))}
     </div>
   );
