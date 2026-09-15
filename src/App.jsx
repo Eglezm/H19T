@@ -557,11 +557,11 @@ function Spinner({ label }) {
 // Si no hay logo configurado para un lado, ese espacio simplemente no se renderiza
 // (no rompe el layout de quienes aún no hayan subido nada). Compatible con el formato
 // viejo (string = URL directa) y el nuevo (objeto {url, path, name, type, updatedAt}).
-function EncabezadoLogos({ torneo, big, side }) {
+function EncabezadoLogos({ torneo, big, side, size: sizeOverride }) {
   const raw = side === "campo" ? torneo?.logos?.campo : torneo?.logos?.torneo;
   const url = getLogoUrl(raw);
   if (!url) return null;
-  const size = big ? 76 : 40;
+  const size = sizeOverride || (big ? 140 : 72);
   return (
     <img src={url} alt={side==="campo"?"Logo del campo":"Logo del torneo"} style={{ height:size, maxWidth:size*1.8, objectFit:"contain", borderRadius:8 }} onError={e=>{e.target.style.display="none";}} />
   );
@@ -992,7 +992,7 @@ function TeamPlayView({ codigo, onExit }) {
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div style={{ fontFamily:FONT_DISPLAY, fontSize:23, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
-            <EncabezadoLogos torneo={torneo} big={false} side="campo" />
+            <EncabezadoLogos torneo={torneo} size={32} side="campo" />
           </div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
         </div>
