@@ -560,9 +560,9 @@ function Spinner({ label }) {
 //
 // Dos modos:
 // - Protagonista (sin "height"): pensado para vivir dentro de un contenedor flexible (flex:1) del
-//   encabezado principal. Usa una altura responsive (clamp) que se adapta a iPhone/tablet/escritorio
-//   y un ancho de 100% de ese contenedor — cada logo aprovecha el espacio disponible conservando
-//   siempre su propia proporción (object-fit: contain, nunca cover), sin recortarse ni deformarse.
+//   encabezado principal, que además le da una ALTURA responsive (clamp) — no la imagen misma, sino
+//   su contenedor, para que object-fit:contain pueda usar tanto el ancho como el alto disponibles y
+//   elegir el eje que corresponda según la proporción de cada logo, sin recortarlo ni deformarlo.
 // - Compacto (con "height" fija en px): para espacios muy ajustados como el header de la vista de
 //   juego, donde el logo debe mantener un tamaño natural pequeño junto a otros elementos.
 function EncabezadoLogos({ torneo, big, side, height: heightOverride }) {
@@ -573,9 +573,8 @@ function EncabezadoLogos({ torneo, big, side, height: heightOverride }) {
   if (heightOverride) {
     return <img src={url} alt={alt} style={{ height:heightOverride, width:"auto", maxWidth:heightOverride*2.2, objectFit:"contain", display:"block" }} onError={e=>{e.target.style.display="none";}} />;
   }
-  const h = big ? "clamp(110px, 15vw, 240px)" : "clamp(52px, 18vw, 108px)";
   return (
-    <img src={url} alt={alt} style={{ height:h, width:"100%", maxWidth:big?300:170, objectFit:"contain", display:"block" }} onError={e=>{e.target.style.display="none";}} />
+    <img src={url} alt={alt} style={{ width:"100%", height:"100%", objectFit:"contain", display:"block" }} onError={e=>{e.target.style.display="none";}} />
   );
 }
 
@@ -889,7 +888,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(16px, 4vw, ${tvMode?56:32}px)`, width:"100%" }}>
           {getLogoUrl(torneo?.logos?.campo) && (
-            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-end", minWidth:0 }}>
+            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(260px, 24vw, 380px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
             </div>
           )}
@@ -899,7 +898,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
           {getLogoUrl(torneo?.logos?.torneo) && (
-            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-start", minWidth:0 }}>
+            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(260px, 24vw, 380px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
             </div>
           )}
