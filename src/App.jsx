@@ -553,17 +553,29 @@ function Spinner({ label }) {
   );
 }
 
-// Logo del campo y/o del torneo, para llenar el encabezado con identidad visual.
-// Si no hay logo configurado para un lado, ese espacio simplemente no se renderiza
-// (no rompe el layout de quienes aún no hayan subido nada). Compatible con el formato
-// viejo (string = URL directa) y el nuevo (objeto {url, path, name, type, updatedAt}).
-function EncabezadoLogos({ torneo, big, side, size: sizeOverride }) {
+// Logo del campo y/o del torneo. Compatible con el formato viejo (string = URL directa) y el
+// nuevo (objeto {url, path, name, type, updatedAt}), vía getLogoUrl(). Si no hay logo configurado
+// para un lado, ese espacio simplemente no se renderiza (no rompe el layout de quienes aún no
+// hayan subido nada).
+//
+// Dos modos:
+// - Protagonista (sin "height"): pensado para vivir dentro de un contenedor flexible (flex:1) del
+//   encabezado principal. Usa una altura responsive (clamp) que se adapta a iPhone/tablet/escritorio
+//   y un ancho de 100% de ese contenedor — cada logo aprovecha el espacio disponible conservando
+//   siempre su propia proporción (object-fit: contain, nunca cover), sin recortarse ni deformarse.
+// - Compacto (con "height" fija en px): para espacios muy ajustados como el header de la vista de
+//   juego, donde el logo debe mantener un tamaño natural pequeño junto a otros elementos.
+function EncabezadoLogos({ torneo, big, side, height: heightOverride }) {
   const raw = side === "campo" ? torneo?.logos?.campo : torneo?.logos?.torneo;
   const url = getLogoUrl(raw);
   if (!url) return null;
-  const size = sizeOverride || (big ? 220 : 110);
+  const alt = side==="campo" ? "Logo del campo" : "Logo del torneo";
+  if (heightOverride) {
+    return <img src={url} alt={alt} style={{ height:heightOverride, width:"auto", maxWidth:heightOverride*2.2, objectFit:"contain", display:"block" }} onError={e=>{e.target.style.display="none";}} />;
+  }
+  const h = big ? "clamp(110px, 15vw, 240px)" : "clamp(52px, 18vw, 108px)";
   return (
-    <img src={url} alt={side==="campo"?"Logo del campo":"Logo del torneo"} style={{ height:size, maxWidth:size*2.2, objectFit:"contain", borderRadius:8 }} onError={e=>{e.target.style.display="none";}} />
+    <img src={url} alt={alt} style={{ height:h, width:"100%", maxWidth:big?300:170, objectFit:"contain", display:"block" }} onError={e=>{e.target.style.display="none";}} />
   );
 }
 
@@ -875,14 +887,22 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             {tvMode ? <><X size={14}/> Salir de pantalla completa</> : <><Monitor size={14}/> Modo pantalla completa</>}
           </button>
         </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:tvMode?28:14 }}>
-          <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
-          <div style={{ textAlign:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(16px, 4vw, ${tvMode?56:32}px)`, width:"100%" }}>
+          {getLogoUrl(torneo?.logos?.campo) && (
+            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-end", minWidth:0 }}>
+              <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
+            </div>
+          )}
+          <div style={{ textAlign:"center", flexShrink:0 }}>
             <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?58:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
             <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?38:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
             <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
-          <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
+          {getLogoUrl(torneo?.logos?.torneo) && (
+            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-start", minWidth:0 }}>
+              <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
+            </div>
+          )}
         </div>
         <div style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"6px 18px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
           <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:tvMode?9:6, height:tvMode?9:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
@@ -992,7 +1012,7 @@ function TeamPlayView({ codigo, onExit }) {
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div style={{ fontFamily:FONT_DISPLAY, fontSize:23, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
-            <EncabezadoLogos torneo={torneo} size={32} side="campo" />
+            <EncabezadoLogos torneo={torneo} height={32} side="campo" />
           </div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
         </div>
