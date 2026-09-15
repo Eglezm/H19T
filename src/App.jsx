@@ -561,9 +561,9 @@ function EncabezadoLogos({ torneo, big, side, size: sizeOverride }) {
   const raw = side === "campo" ? torneo?.logos?.campo : torneo?.logos?.torneo;
   const url = getLogoUrl(raw);
   if (!url) return null;
-  const size = sizeOverride || (big ? 140 : 72);
+  const size = sizeOverride || (big ? 220 : 110);
   return (
-    <img src={url} alt={side==="campo"?"Logo del campo":"Logo del torneo"} style={{ height:size, maxWidth:size*1.8, objectFit:"contain", borderRadius:8 }} onError={e=>{e.target.style.display="none";}} />
+    <img src={url} alt={side==="campo"?"Logo del campo":"Logo del torneo"} style={{ height:size, maxWidth:size*2.2, objectFit:"contain", borderRadius:8 }} onError={e=>{e.target.style.display="none";}} />
   );
 }
 
