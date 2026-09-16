@@ -584,10 +584,10 @@ function FranjaPatrocinadores({ torneo, big }) {
   const items = normalizarPatrocinadores(torneo?.logos?.patrocinadores).map(p => ({ ...p, urlResuelta: getLogoUrl(p) })).filter(p => p.urlResuelta);
   if (items.length === 0) return null;
   return (
-    <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:big?36:20, padding:big?"20px 16px":"12px 10px" }}>
+    <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:big?28:20, padding:big?"10px 16px 2px":"12px 10px" }}>
       {!big && <span style={{ fontSize:9, color:D.textDim, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, width:"100%", textAlign:"center", marginBottom:2 }}>Patrocinado por</span>}
       {items.map((p, i) => (
-        <img key={p.id||i} src={p.urlResuelta} alt={p.nombre || `Patrocinador ${i+1}`} style={{ height:big?84:34, width:"auto", maxWidth:big?360:190, objectFit:"contain", flexShrink:0 }} onError={e=>{e.target.style.display="none";}} />
+        <img key={p.id||i} src={p.urlResuelta} alt={p.nombre || `Patrocinador ${i+1}`} style={{ height:big?58:34, width:"auto", maxWidth:big?260:190, objectFit:"contain", flexShrink:0 }} onError={e=>{e.target.style.display="none";}} />
       ))}
     </div>
   );
@@ -871,10 +871,10 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
 
   return (
     <div style={tvMode ? tvStyle : appStyle}>
-      <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"32px 24px 24px":"20px 16px 14px", textAlign:"center", position:"relative" }}>
-        <div style={{ position:"absolute", top:tvMode?24:14, right:tvMode?24:14, display:"flex", gap:8 }} className="no-print">
+      <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"10px 20px 8px":"20px 16px 14px", textAlign:"center", position:"relative" }}>
+        <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginBottom:tvMode?6:0 }} className="no-print">
           {tvMode && (
-            <select value={vista} onChange={e=>setVista(e.target.value)} style={{ padding:"8px 14px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:13, fontWeight:700 }}>
+            <select value={vista} onChange={e=>setVista(e.target.value)} style={{ padding:"5px 10px", border:`1px solid ${D.gold}`, borderRadius:16, background:D.goldDim, color:D.gold, fontSize:11, fontWeight:700 }}>
               <option value="todo">Posiciones + Tarjeta</option>
               <option value="tarjeta">Solo Tarjeta</option>
               <option value="posiciones">Solo Posiciones</option>
@@ -882,39 +882,39 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <option value="auto">Automático (Posiciones → Tarjeta{hayOyes?" → O'Yes":""})</option>
             </select>
           )}
-          <button onClick={() => setTvMode(v => { const next = !v; if (next && vista==="todo") setVista("auto"); return next; })} style={{ padding:tvMode?"10px 18px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:20, background:D.goldDim, color:D.gold, fontSize:tvMode?14:11, fontWeight:700, cursor:"pointer" }}>
-            {tvMode ? <><X size={14}/> Salir de pantalla completa</> : <><Monitor size={14}/> Modo pantalla completa</>}
+          <button onClick={() => setTvMode(v => { const next = !v; if (next && vista==="todo") setVista("auto"); return next; })} style={{ padding:tvMode?"5px 12px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:16, background:D.goldDim, color:D.gold, fontSize:tvMode?11:11, fontWeight:700, cursor:"pointer" }}>
+            {tvMode ? <><X size={12}/> Salir</> : <><Monitor size={14}/> Modo pantalla completa</>}
           </button>
         </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(16px, 4vw, ${tvMode?56:32}px)`, width:"100%" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(12px, 3vw, ${tvMode?36:32}px)`, width:"100%" }}>
           {getLogoUrl(torneo?.logos?.campo) && (
-            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(260px, 24vw, 380px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(60px, 9vh, 120px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
             </div>
           )}
           <div style={{ textAlign:"center", flexShrink:0 }}>
-            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?58:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
-            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?38:13, fontWeight:700, marginTop:4 }}>{torneo.nombre}</div>
-            <div style={{ fontSize:tvMode?16:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:2 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?28:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?18:13, fontWeight:700, marginTop:2 }}>{torneo.nombre}</div>
+            <div style={{ fontSize:tvMode?11:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
           {getLogoUrl(torneo?.logos?.torneo) && (
-            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(260px, 24vw, 380px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(60px, 9vh, 120px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
             </div>
           )}
         </div>
-        <div style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"6px 18px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
-          <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:tvMode?9:6, height:tvMode?9:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
-          <span style={{ fontSize:tvMode?14:10, fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", color:torneo.status==="finalizada"?D.success:D.achievement }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
+        <div style={{ marginTop:6, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"4px 14px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
+          <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:tvMode?7:6, height:tvMode?7:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
+          <span style={{ fontSize:tvMode?11:10, fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", color:torneo.status==="finalizada"?D.success:D.achievement }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
         </div>
         {vista === "auto" && (
-          <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:6, padding:"5px 14px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
-            <span style={{ fontSize:tvMode?13:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · cambia cada 12s</span>
+          <div style={{ marginTop:6, display:"inline-flex", alignItems:"center", gap:6, padding:"4px 12px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20, marginLeft:8 }}>
+            <span style={{ fontSize:tvMode?11:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · cambia cada 12s</span>
           </div>
         )}
         <FranjaPatrocinadores torneo={torneo} big={tvMode} />
       </div>
-      <div style={tvMode ? { padding:"24px", maxWidth:1400, margin:"0 auto", display:"grid", gap:20 } : { padding:"12px 12px 32px" }}>
+      <div style={tvMode ? { padding:"20px 24px", maxWidth:"98vw", margin:"0 auto", display:"grid", gap:16 } : { padding:"12px 12px 32px" }}>
         {vista === "auto" ? (
           <div key={autoSlide} className="h19-tab-panel">
             {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} />}
