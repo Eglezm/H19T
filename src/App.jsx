@@ -574,7 +574,7 @@ function EncabezadoLogos({ torneo, big, side, height: heightOverride }) {
     return <img src={url} alt={alt} style={{ height:heightOverride, width:"auto", maxWidth:heightOverride*2.2, objectFit:"contain", display:"block" }} onError={e=>{e.target.style.display="none";}} />;
   }
   return (
-    <img src={url} alt={alt} style={{ width:"100%", height:"100%", objectFit:"contain", display:"block" }} onError={e=>{e.target.style.display="none";}} />
+    <img src={url} alt={alt} style={{ maxWidth:"100%", maxHeight:"100%", width:"auto", height:"auto", objectFit:"contain", display:"block" }} onError={e=>{e.target.style.display="none";}} />
   );
 }
 
@@ -888,7 +888,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(10px, 2.5vw, ${tvMode?28:32}px)`, width:"100%" }}>
           {getLogoUrl(torneo?.logos?.campo) && (
-            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(90px, 17vh, 190px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(270px, 51vh, 570px)" : "clamp(390px, 90vw, 660px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
             </div>
           )}
@@ -898,7 +898,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             <div style={{ fontSize:tvMode?10:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
           {getLogoUrl(torneo?.logos?.torneo) && (
-            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(90px, 17vh, 190px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(270px, 51vh, 570px)" : "clamp(390px, 90vw, 660px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
             </div>
           )}
