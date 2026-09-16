@@ -587,7 +587,7 @@ function FranjaPatrocinadores({ torneo, big }) {
     <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:big?28:20, padding:big?"10px 16px 2px":"12px 10px" }}>
       {!big && <span style={{ fontSize:9, color:D.textDim, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, width:"100%", textAlign:"center", marginBottom:2 }}>Patrocinado por</span>}
       {items.map((p, i) => (
-        <img key={p.id||i} src={p.urlResuelta} alt={p.nombre || `Patrocinador ${i+1}`} style={{ height:big?58:34, width:"auto", maxWidth:big?260:190, objectFit:"contain", flexShrink:0 }} onError={e=>{e.target.style.display="none";}} />
+        <img key={p.id||i} src={p.urlResuelta} alt={p.nombre || `Patrocinador ${i+1}`} style={{ height:big?46:34, width:"auto", maxWidth:big?220:190, objectFit:"contain", flexShrink:0 }} onError={e=>{e.target.style.display="none";}} />
       ))}
     </div>
   );
@@ -886,19 +886,19 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             {tvMode ? <><X size={12}/> Salir</> : <><Monitor size={14}/> Modo pantalla completa</>}
           </button>
         </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(12px, 3vw, ${tvMode?36:32}px)`, width:"100%" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(10px, 2.5vw, ${tvMode?28:32}px)`, width:"100%" }}>
           {getLogoUrl(torneo?.logos?.campo) && (
-            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(60px, 9vh, 120px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(90px, 17vh, 190px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
             </div>
           )}
           <div style={{ textAlign:"center", flexShrink:0 }}>
-            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?28:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
-            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?18:13, fontWeight:700, marginTop:2 }}>{torneo.nombre}</div>
-            <div style={{ fontSize:tvMode?11:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?22:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?15:13, fontWeight:700, marginTop:2 }}>{torneo.nombre}</div>
+            <div style={{ fontSize:tvMode?10:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
           {getLogoUrl(torneo?.logos?.torneo) && (
-            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(60px, 9vh, 120px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(90px, 17vh, 190px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
             </div>
           )}
