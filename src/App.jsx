@@ -580,15 +580,23 @@ function EncabezadoLogos({ torneo, big, side, height: heightOverride }) {
 
 // Franja de logos de patrocinadores — discreta, solo aparece si el admin configuró al menos uno.
 // Compatible con patrocinadores guardados como string (formato viejo) u objeto (formato nuevo).
+// Se desplaza en un marquee infinito, lento y continuo (la lista se duplica una vez para que el
+// ciclo no se note al reiniciar); respeta prefers-reduced-motion vía la clase .h19-marquee-track.
 function FranjaPatrocinadores({ torneo, big }) {
   const items = normalizarPatrocinadores(torneo?.logos?.patrocinadores).map(p => ({ ...p, urlResuelta: getLogoUrl(p) })).filter(p => p.urlResuelta);
   if (items.length === 0) return null;
+  const gap = big ? 24 : 20;
+  const duracion = Math.min(50, Math.max(35, items.length * 6)); // 35–50s según la cantidad de logos
   return (
-    <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:big?24:20, padding:big?"6px 16px 0":"12px 10px" }}>
-      {!big && <span style={{ fontSize:9, color:D.textDim, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, width:"100%", textAlign:"center", marginBottom:2 }}>Patrocinado por</span>}
-      {items.map((p, i) => (
-        <img key={p.id||i} src={p.urlResuelta} alt={p.nombre || `Patrocinador ${i+1}`} style={{ height:big?38:34, width:"auto", maxWidth:big?190:190, objectFit:"contain", flexShrink:0 }} onError={e=>{e.target.style.display="none";}} />
-      ))}
+    <div style={{ width:"100%", padding:big?"4px 0 0":"12px 10px" }}>
+      {!big && <div style={{ fontSize:9, color:D.textDim, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, textAlign:"center", marginBottom:2 }}>Patrocinado por</div>}
+      <div style={{ overflow:"hidden", width:"100%" }}>
+        <div className="h19-marquee-track" style={{ gap, "--h19-marquee-duration":`${duracion}s` }}>
+          {[...items, ...items].map((p, i) => (
+            <img key={`${p.id||i}-${i}`} src={p.urlResuelta} alt={p.nombre || "Patrocinador"} style={{ height:big?38:34, width:"auto", maxWidth:big?190:190, objectFit:"contain", flexShrink:0 }} onError={e=>{e.target.style.display="none";}} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -888,7 +896,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(8px, 2vw, ${tvMode?22:32}px)`, width:"100%" }}>
           {getLogoUrl(torneo?.logos?.campo) && (
-            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(70px, 14vh, 210px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
             </div>
           )}
@@ -898,20 +906,22 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             <div style={{ fontSize:tvMode?9:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
           {getLogoUrl(torneo?.logos?.torneo) && (
-            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(70px, 14vh, 210px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
             </div>
           )}
         </div>
-        <div style={{ marginTop:4, display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"3px 12px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
-          <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:tvMode?6:6, height:tvMode?6:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
-          <span style={{ fontSize:tvMode?10:10, fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", color:torneo.status==="finalizada"?D.success:D.achievement }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
-        </div>
-        {vista === "auto" && (
-          <div style={{ marginTop:4, display:"inline-flex", alignItems:"center", gap:6, padding:"3px 10px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20, marginLeft:8 }}>
-            <span style={{ fontSize:tvMode?10:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · cambia cada 12s</span>
+        <div style={{ marginTop:3, display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:6 }}>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"3px 12px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
+            <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:6, height:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", color:torneo.status==="finalizada"?D.success:D.achievement }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
           </div>
-        )}
+          {vista === "auto" && (
+            <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"3px 10px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
+              <span style={{ fontSize:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · cambia cada 12s</span>
+            </div>
+          )}
+        </div>
         <FranjaPatrocinadores torneo={torneo} big={tvMode} />
       </div>
       <div style={tvMode ? { padding:"20px 24px", maxWidth:"98vw", margin:"0 auto", display:"grid", gap:16 } : { padding:"12px 12px 32px" }}>
