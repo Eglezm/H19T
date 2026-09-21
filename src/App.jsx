@@ -565,6 +565,23 @@ function Spinner({ label }) {
 //   elegir el eje que corresponda según la proporción de cada logo, sin recortarlo ni deformarlo.
 // - Compacto (con "height" fija en px): para espacios muy ajustados como el header de la vista de
 //   juego, donde el logo debe mantener un tamaño natural pequeño junto a otros elementos.
+// Logo global de la aplicación (no ligado a un torneo específico) — sustituye el wordmark de
+// texto "H19T" en todas las pantallas donde aparece, incluyendo el inicio. Si no hay logo
+// configurado, o si la imagen falla al cargar, cae de vuelta al texto original sin romper nada.
+function AppLogo({ fontSize, style = {} }) {
+  const [url, setUrl] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const r = ref(db, "appLogo");
+    const unsub = onValue(r, snap => { setUrl(snap.exists() ? getLogoUrl(snap.val()) : null); setFailed(false); });
+    return () => unsub();
+  }, []);
+  if (url && !failed) {
+    return <img src={url} alt="H19T" style={{ height:fontSize*1.25, width:"auto", maxWidth:fontSize*6.5, objectFit:"contain", display:"inline-block", verticalAlign:"middle", ...style }} onError={() => setFailed(true)} />;
+  }
+  return <div style={{ fontFamily:FONT_DISPLAY, fontSize, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE, ...style }}>H19T</div>;
+}
+
 function EncabezadoLogos({ torneo, big, side, height: heightOverride }) {
   const raw = side === "campo" ? torneo?.logos?.campo : torneo?.logos?.torneo;
   const url = getLogoUrl(raw);
@@ -896,17 +913,17 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(8px, 2vw, ${tvMode?22:32}px)`, width:"100%" }}>
           {getLogoUrl(torneo?.logos?.campo) && (
-            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"flex-start", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
             </div>
           )}
           <div style={{ textAlign:"center", flexShrink:0 }}>
-            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?18:32, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+            <AppLogo fontSize={tvMode?18:32} />
             <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?12:13, fontWeight:700, marginTop:1 }}>{torneo.nombre}</div>
             <div style={{ fontSize:tvMode?9:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
           {getLogoUrl(torneo?.logos?.torneo) && (
-            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"flex-end", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
             </div>
           )}
@@ -1020,7 +1037,7 @@ function TeamPlayView({ codigo, onExit }) {
       <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ fontFamily:FONT_DISPLAY, fontSize:23, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+            <AppLogo fontSize={23} />
             <EncabezadoLogos torneo={torneo} height={32} side="campo" />
           </div>
           <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
@@ -1276,7 +1293,7 @@ export default function H19T() {
   if (mode === "home") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:16 }}>
-        <div style={{ fontFamily:FONT_DISPLAY, fontSize:68, fontWeight:700, letterSpacing:-2, color:D.gold, textAlign:"center", ...GRAD_TEXT_STYLE }}>H19T</div>
+        <AppLogo fontSize={68} style={{ letterSpacing:-2, textAlign:"center" }} />
         <div style={{ fontSize:12, color:D.textSub, letterSpacing:3, textTransform:"uppercase", marginBottom:16 }}>Club de Golf</div>
         <Btn onClick={() => setMode("pin")}><User size={16}/> Entrar como Admin</Btn>
         <Btn outline onClick={() => setMode("codigo-input")}><KeyRound size={16}/> Tengo un código de equipo</Btn>
@@ -1288,7 +1305,7 @@ export default function H19T() {
   if (mode === "pin") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontFamily:FONT_DISPLAY, fontSize:38, fontWeight:700, color:D.gold, textAlign:"center", ...GRAD_TEXT_STYLE }}>H19T</div>
+        <AppLogo fontSize={38} style={{ textAlign:"center" }} />
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8 }}>Ingresa tu PIN de administrador</div>
         <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)} placeholder="PIN" maxLength={6}
           style={{ width:"100%", padding:14, border:`1px solid ${pinError?D.danger:D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:22, textAlign:"center", letterSpacing:8, fontWeight:700 }} />
@@ -1302,7 +1319,7 @@ export default function H19T() {
   if (mode === "codigo-input") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontFamily:FONT_DISPLAY, fontSize:38, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+        <AppLogo fontSize={38} />
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8, textAlign:"center" }}>Ingresa el código de tu equipo</div>
         <input value={codigoInput} onChange={e => setCodigoInput(e.target.value.toUpperCase())} placeholder="Código" maxLength={8}
           style={{ width:"100%", padding:14, border:`1px solid ${D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700 }} />
@@ -1315,7 +1332,7 @@ export default function H19T() {
   if (mode === "torneo-input") {
     return (
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, gap:14 }}>
-        <div style={{ fontFamily:FONT_DISPLAY, fontSize:38, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+        <AppLogo fontSize={38} />
         <div style={{ fontSize:14, color:D.textSub, marginBottom:8, textAlign:"center" }}>Ingresa el código del torneo</div>
         <input value={torneoInput} onChange={e => setTorneoInput(e.target.value.toUpperCase())} placeholder="Código de torneo" maxLength={8}
           style={{ width:"100%", padding:14, border:`1px solid ${D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700 }} />
@@ -1376,6 +1393,8 @@ function AdminTorneoApp({ onExit }) {
   const inputCampoRef = useRef(null);
   const inputTorneoRef = useRef(null);
   const sponsorFileInputRef = useRef(null);
+  const [appLogoObj, setAppLogoObj] = useState(null);
+  const inputAppLogoRef = useRef(null);
 
   // Elimina una ronda del historial, y de paso limpia el torneo original y sus códigos si aún existen
   const eliminarHistorialEntry = (r) => {
@@ -1472,6 +1491,13 @@ function AdminTorneoApp({ onExit }) {
       setLogosSyncedFor(torneoId);
     }
   }, [torneo, torneoId, logosSyncedFor]);
+
+  // Suscripción en vivo al logo global de la app (no depende de qué torneo esté seleccionado)
+  useEffect(() => {
+    const r = ref(db, "appLogo");
+    const unsub = onValue(r, snap => setAppLogoObj(snap.exists() ? snap.val() : null));
+    return () => unsub();
+  }, []);
 
   const saveDir = (newPlayers, newNidVal) => set(ref(db, "h19tDirectorio"), { players:newPlayers, nextId:newNidVal||nid });
   const addPlayer = () => {
@@ -1696,6 +1722,18 @@ function AdminTorneoApp({ onExit }) {
     remove(ref(db, `torneos/${torneoId}/logos/torneo`));
     setLogoTorneoObj(null); setConfirmEliminarLogo(null);
   };
+  const subirAppLogo = (file) => {
+    subirImagen(file, "applogo", "appLogo", (data) => {
+      set(ref(db, "appLogo"), data);
+      setAppLogoObj(data);
+    });
+  };
+  const eliminarAppLogo = () => {
+    const path = getLogoPath(appLogoObj);
+    if (path) deleteObject(storageRef(storage, path)).catch(()=>{});
+    remove(ref(db, "appLogo"));
+    setAppLogoObj(null); setConfirmEliminarLogo(null);
+  };
 
   const guardarPatrocinadores = (nuevaLista) => {
     setPatrocinadoresList(nuevaLista);
@@ -1787,7 +1825,7 @@ function AdminTorneoApp({ onExit }) {
   const Header = ({ title }) => (
     <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:"20px 16px 14px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ fontFamily:FONT_DISPLAY, fontSize:25, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE }}>H19T</div>
+        <AppLogo fontSize={25} />
         <button onClick={onExit} style={{ fontSize:12, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
       </div>
       {title && <div style={{ fontSize:12.5, color:D.textSub, marginTop:3 }}>{title}</div>}
@@ -1798,6 +1836,7 @@ function AdminTorneoApp({ onExit }) {
     {key:"dir",icon:<Users size={14}/>,label:"Jugadores"},
     {key:"nuevo",icon:<Sparkles size={14}/>,label:"Nuevo torneo"},
     {key:"hist",icon:<ClipboardList size={14}/>,label:"Historial"},
+    {key:"applogo",icon:<ImageIcon size={14}/>,label:"Logo App"},
   ];
   const adminTabs = [
     {key:"unidades",icon:<User size={14}/>,label:"Unidades"},
@@ -1885,6 +1924,51 @@ function AdminTorneoApp({ onExit }) {
       </div>
     </div>
   );
+
+  // ── LOGO GLOBAL DE LA APP (sustituye el wordmark "H19T" en toda la aplicación) ──
+  if (screen==="applogo") {
+    const stApp = uploadState.applogo || {};
+    return (
+      <div style={appSt}>
+        <Header title="Admin" />
+        <div style={{ padding:"12px 12px" }}>
+          <TabBar tabs={mainTabs} active="applogo" onChange={k => setScreen(k)} />
+
+          <input ref={inputAppLogoRef} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display:"none" }} onChange={e => { const f=e.target.files[0]; if (f) subirAppLogo(f); e.target.value=""; }} />
+
+          <Card>
+            <div style={{ fontSize:11, color:D.textSub, lineHeight:1.5 }}>Este logo sustituye el texto "H19T" en toda la aplicación — pantalla de inicio, PIN de administrador, código de equipo, código de torneo, y el encabezado de cada torneo. Aplica a todos los torneos, no solo al que tengas abierto.</div>
+          </Card>
+
+          <Card>
+            <SLabel><ImageIcon size={13}/> Logo de la aplicación</SLabel>
+            {appLogoObj && !stApp.uploading && (
+              <img src={getLogoUrl(appLogoObj)} alt="Logo de la app" style={{ height:56, maxWidth:220, objectFit:"contain", marginBottom:10, display:"block" }} />
+            )}
+            {stApp.uploading && (
+              <div style={{ marginBottom:10 }}>
+                {stApp.preview && <img src={stApp.preview} alt="" style={{ height:56, maxWidth:220, objectFit:"contain", opacity:0.55, marginBottom:6, display:"block" }} />}
+                <div style={{ fontSize:11, color:D.textSub, marginBottom:4 }}>Procesando…</div>
+              </div>
+            )}
+            {stApp.error && <div style={{ fontSize:11, color:D.danger, marginBottom:8 }}>{stApp.error}</div>}
+            {!appLogoObj && !stApp.uploading && !stApp.error && <div style={{ fontSize:11, color:D.textDim, marginBottom:10 }}>Aún no hay logo — se sigue mostrando el texto "H19T"</div>}
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => inputAppLogoRef.current.click()} disabled={stApp.uploading} style={{ flex:1, padding:10, border:`1px solid ${D.gold}`, borderRadius:10, background:D.goldDim, color:D.gold, fontSize:12, fontWeight:700, cursor:stApp.uploading?"default":"pointer", opacity:stApp.uploading?0.5:1 }}>{appLogoObj ? "Reemplazar imagen" : "Seleccionar imagen"}</button>
+              {appLogoObj && !stApp.uploading && (confirmEliminarLogo==="applogo" ? (
+                <>
+                  <button onClick={eliminarAppLogo} style={{ padding:"10px 12px", border:`1px solid ${D.danger}`, borderRadius:10, background:D.redBg, color:D.danger, fontSize:12, fontWeight:700, cursor:"pointer" }}>Confirmar</button>
+                  <button onClick={() => setConfirmEliminarLogo(null)} style={{ padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Cancelar</button>
+                </>
+              ) : (
+                <button onClick={() => setConfirmEliminarLogo("applogo")} style={{ padding:"10px 12px", border:`1px solid ${D.danger}44`, borderRadius:10, background:"transparent", color:D.danger, cursor:"pointer" }}><Trash2 size={14}/></button>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   // ── NUEVO TORNEO (config) ──
   if (screen==="nuevo") return (
