@@ -918,9 +918,9 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             </div>
           )}
           <div style={{ textAlign:"center", flexShrink:0 }}>
-            <AppLogo fontSize={tvMode?18:32} />
-            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?12:13, fontWeight:700, marginTop:1 }}>{torneo.nombre}</div>
-            <div style={{ fontSize:tvMode?9:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
+            <AppLogo fontSize={tvMode?26:32} />
+            <div style={{ fontFamily:FONT_DISPLAY, fontSize:tvMode?17:13, fontWeight:700, marginTop:tvMode?3:1 }}>{torneo.nombre}</div>
+            <div style={{ fontSize:tvMode?12:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:tvMode?2:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
           {getLogoUrl(torneo?.logos?.torneo) && (
             <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
