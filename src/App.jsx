@@ -577,7 +577,7 @@ function AppLogo({ fontSize, style = {} }) {
     return () => unsub();
   }, []);
   if (url && !failed) {
-    return <img src={url} alt="H19T" style={{ height:fontSize*1.25, width:"auto", maxWidth:fontSize*6.5, objectFit:"contain", display:"inline-block", verticalAlign:"middle", ...style }} onError={() => setFailed(true)} />;
+    return <img src={url} alt="H19T" style={{ height:fontSize*2.6, width:"auto", maxWidth:fontSize*9, objectFit:"contain", display:"inline-block", verticalAlign:"middle", ...style }} onError={() => setFailed(true)} />;
   }
   return <div style={{ fontFamily:FONT_DISPLAY, fontSize, fontWeight:700, color:D.gold, ...GRAD_TEXT_STYLE, ...style }}>H19T</div>;
 }
