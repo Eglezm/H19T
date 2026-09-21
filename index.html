@@ -105,6 +105,13 @@
       @keyframes badgeIn { from { opacity:0; transform:scale(0.88); } to { opacity:1; transform:scale(1); } }
       .h19-champion-in { animation: championIn 550ms cubic-bezier(0.22,1,0.36,1) both; }
       .h19-badge-in { animation: badgeIn 550ms cubic-bezier(0.22,1,0.36,1) both; }
+
+      /* ── Franja de patrocinadores: desplazamiento continuo, lento y sin saltos ── */
+      @keyframes h19Marquee { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+      .h19-marquee-track { display:flex; align-items:center; width:max-content; animation:h19Marquee var(--h19-marquee-duration, 40s) linear infinite; }
+      @media (prefers-reduced-motion: reduce) {
+        .h19-marquee-track { animation:none; }
+      }
       ::selection { background: rgba(0,86,63,0.18); }
     </style>
   </head>
