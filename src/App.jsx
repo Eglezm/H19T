@@ -1454,7 +1454,9 @@ function AdminTorneoApp({ onExit }) {
     const unsub = onValue(tRef, snap => {
       if (snap.exists()) {
         const data = snap.val();
-        setListaTorneos(Object.entries(data).filter(([,t]) => t.status !== "finalizada").map(([id,t]) => ({id,...t})));
+        // Solo estados que H19T reconoce como "en curso" — cualquier otro valor (incluido
+        // dato ajeno con un status distinto, como "finalizado" en vez de "finalizada") no se muestra
+        setListaTorneos(Object.entries(data).filter(([,t]) => t.status === "armado" || t.status === "en_juego").map(([id,t]) => ({id,...t})));
       } else setListaTorneos([]);
     });
     return () => unsub();
