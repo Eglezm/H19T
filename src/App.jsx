@@ -988,6 +988,9 @@ function TeamPlayView({ codigo, onExit }) {
   const [torneo, setTorneo] = useState(null);
   const [posInOrder, setPosInOrder] = useState(0);
   const [tab, setTab] = useState("marcar");
+  // Score "pendiente" local (mismo motivo que en la captura del admin): evita que un segundo
+  // toque de +/- muy seguido calcule sobre el score todavía viejo de `torneo`. Clave: hoyo.
+  const [pendingScore, setPendingScore] = useState({});
 
   useEffect(() => {
     const r = ref(db, `codigos/${codigo}`);
@@ -1029,15 +1032,19 @@ function TeamPlayView({ codigo, onExit }) {
 
   const setScore = (delta) => {
     if (!marcoA) return;
-    const current = marcoA.scores?.[hole] ?? par;
-    const val = Math.max(1, current + delta);
-    set(ref(db, `torneos/${torneoId}/unidades/${miUnidad.marcaA}/scores/${hole}`), val);
+    setPendingScore(prev => {
+      const base = prev[hole] !== undefined ? prev[hole] : (marcoA.scores?.[hole] ?? par);
+      const val = Math.max(1, base + delta);
+      set(ref(db, `torneos/${torneoId}/unidades/${miUnidad.marcaA}/scores/${hole}`), val);
+      return { ...prev, [hole]: val };
+    });
   };
 
   // Si el hoyo actual se quedó sin capturar (el jugador hizo par y no tocó + / −),
   // guarda el par de campo como su score antes de navegar a otro hoyo o pestaña.
   const commitParSiFalta = () => {
     if (!marcoA) return;
+    if (pendingScore[hole] !== undefined) return; // ya se tocó +/- para este hoyo, no hace falta el default
     const current = marcoA.scores?.[hole];
     if (current === null || current === undefined) {
       set(ref(db, `torneos/${torneoId}/unidades/${miUnidad.marcaA}/scores/${hole}`), par);
@@ -1047,7 +1054,7 @@ function TeamPlayView({ codigo, onExit }) {
   const cambiarTab = (k) => { commitParSiFalta(); setTab(k); };
 
   const miScore = (miUnidad.scores || [])[hole];
-  const suScore = (marcoA?.scores || [])[hole];
+  const suScore = pendingScore[hole] !== undefined ? pendingScore[hole] : (marcoA?.scores || [])[hole];
 
   return (
     <div style={appStyle}>
@@ -1194,7 +1201,7 @@ function OyesRecordView({ torneoId, onExit }) {
   });
 
   const anotar = () => {
-    if (!jugadorId || !hole || !cm || parseFloat(cm)<=0) return;
+    if (!jugadorId || !hole || cm==="" || isNaN(parseFloat(cm)) || parseFloat(cm)<0) return;
     const jug = todosLosJugadores(torneo).find(j=>j.id===parseInt(jugadorId) || j.id===jugadorId);
     if (!jug) return;
     const id = `E${Date.now()}`;
@@ -1237,8 +1244,8 @@ function OyesRecordView({ torneoId, onExit }) {
             ))}
           </div>
           <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Distancia (centímetros)</div>
-          <input type="number" min="0.01" step="0.01" value={cm} onChange={e=>setCm(e.target.value)} placeholder="Ej. 245 o 245.5" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
-          <Btn onClick={anotar} disabled={!jugadorId||!hole||!cm}><Target size={16}/> Guardar anotación</Btn>
+          <input type="number" min="0" step="0.01" value={cm} onChange={e=>setCm(e.target.value)} placeholder="Ej. 245 o 245.5 (0 = hole in one)" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
+          <Btn onClick={anotar} disabled={!jugadorId||!hole||cm===""}><Target size={16}/> Guardar anotación</Btn>
         </Card>
 
         <Card>
@@ -1431,6 +1438,10 @@ function AdminTorneoApp({ onExit }) {
   // Constructor de grupos de salida
   const [hoyoSel, setHoyoSel] = useState(1);
   const [capturaUnidadId, setCapturaUnidadId] = useState(null);
+  // Valores de score "optimistas" (recién enviados a Firebase, antes de que el listener los confirme).
+  // Sin esto, tocar +/- muy seguido usaba el score todavía viejo de `torneo` como base y el segundo
+  // toque no se reflejaba. Clave: `${unidadId}:${holeIdx}`.
+  const [pendingScoresAdmin, setPendingScoresAdmin] = useState({});
   const [selUnidades, setSelUnidades] = useState([]); // orden importa (cadena)
 
   const [codigosUsados, setCodigosUsados] = useState(new Set());
@@ -1795,16 +1806,30 @@ function AdminTorneoApp({ onExit }) {
 
   const iniciarTorneo = () => { set(ref(db, `torneos/${torneoId}/status`), "en_juego"); };
 
-  // El admin puede corregir/capturar el score de CUALQUIER unidad, en cualquier hoyo
+  // El admin puede corregir/capturar el score de CUALQUIER unidad, en cualquier hoyo.
+  // Usa un valor "pendiente" local como base de cada toque en vez de `torneo` (que solo se
+  // actualiza cuando Firebase confirma el cambio anterior) — así varios toques seguidos de +/-
+  // siempre suman sobre el último valor que el admin realmente pidió, sin depender de la
+  // velocidad de la conexión.
   const ajustarScoreAdmin = (uid, holeIdx, delta) => {
     if (!torneo) return;
-    const u = torneo.unidades[uid];
+    const key = `${uid}:${holeIdx}`;
     const par = torneo.pares[holeIdx];
-    const current = u.scores?.[holeIdx] ?? par;
-    const val = Math.max(1, current + delta);
-    set(ref(db, `torneos/${torneoId}/unidades/${uid}/scores/${holeIdx}`), val);
+    setPendingScoresAdmin(prev => {
+      const base = prev[key] !== undefined ? prev[key] : (torneo.unidades[uid]?.scores?.[holeIdx] ?? par);
+      const val = Math.max(1, base + delta);
+      set(ref(db, `torneos/${torneoId}/unidades/${uid}/scores/${holeIdx}`), val);
+      return { ...prev, [key]: val };
+    });
   };
   const borrarScoreAdmin = (uid, holeIdx) => {
+    const key = `${uid}:${holeIdx}`;
+    setPendingScoresAdmin(prev => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
     set(ref(db, `torneos/${torneoId}/unidades/${uid}/scores/${holeIdx}`), null);
   };
 
@@ -2574,7 +2599,8 @@ function AdminTorneoApp({ onExit }) {
               <SLabel>{u.nombre} — hoyo por hoyo</SLabel>
               {torneo.pares.map((_, i) => (u.hoyoSalida??0) + i).map(h0 => h0 % torneo.pares.length).map(h => {
                 const par = torneo.pares[h];
-                const s = u.scores?.[h];
+                const pendingKey = `${u.id}:${h}`;
+                const s = pendingScoresAdmin[pendingKey] !== undefined ? pendingScoresAdmin[pendingKey] : u.scores?.[h];
                 const b = getBadge(s, par);
                 const tee = teeColor(torneo.campo, h);
                 const ts = teeStyle(tee);
