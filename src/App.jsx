@@ -833,32 +833,39 @@ function OyesLiveView({ torneo, big }) {
       {ranking.map((e, pos) => {
         const esHoleInOne = pos === 0 && Math.round((e.cm||0)*100) === 0;
         const premioNombre = pos<premios ? (premiosNombres[pos]||"").trim() : "";
+        const avatarSize = big ? 40 : 28;
         return (
-        <div key={e.jugadorId} className={esHoleInOne ? "h19-hio-row" : undefined} style={{ display:"flex", alignItems:"center", gap:big?16:10, padding:big?"14px 0":"9px 0", borderBottom:pos<ranking.length-1?`1px solid ${D.border}`:"none", background:pos<premios?D.goldDim+"55":"transparent", borderRadius:esHoleInOne?10:0 }}>
-          <div style={{ width:big?36:24, height:big?36:24, borderRadius:"50%", background:pos<premios?D.goldDim:D.surface, border:`1px solid ${pos<premios?D.gold:D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:big?16:12, fontWeight:900, color:pos<premios?D.gold:D.textSub, flexShrink:0 }}>{pos+1}</div>
-          <Avatar name={e.jugadorNombre} id={e.jugadorId} size={big?40:28} />
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:big?FONT_DISPLAY:"inherit", fontSize:big?22:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
-            <div style={{ fontSize:big?15:12, fontWeight:500, color:"#44503F", marginTop:2 }}>
-              {e.unidadNombre}
-              <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Hoyo {e.holeFisico}
-              {e.ts && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{fmtHora(e.ts)}</>}
-            </div>
-          </div>
-          {esHoleInOne ? (
-            premioNombre ? (
-              <div style={{ position:"relative", minWidth:big?160:104, height:big?20:14, marginRight:4, flexShrink:0 }}>
-                <span className="h19-hio-flash-a" style={{ position:"absolute", right:0, top:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:big?160:104, fontSize:big?13:10, fontWeight:800, color:D.gold, textTransform:"uppercase", letterSpacing:0.4 }}>{premioNombre}</span>
-                <span className="h19-hio-flash-b" style={{ position:"absolute", right:0, top:0, whiteSpace:"nowrap", fontSize:big?13:10, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:0.4, display:"flex", alignItems:"center", gap:4 }}><Sparkles size={big?14:11}/>Hole in one</span>
+        <div key={e.jugadorId} className={esHoleInOne ? "h19-hio-row" : undefined} style={{ display:"flex", flexDirection:"column", padding:big?"14px 0":"9px 0", borderBottom:pos<ranking.length-1?`1px solid ${D.border}`:"none", background:pos<premios?D.goldDim+"55":"transparent", borderRadius:esHoleInOne?10:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:big?16:10 }}>
+            <div style={{ width:big?36:24, height:big?36:24, borderRadius:"50%", background:pos<premios?D.goldDim:D.surface, border:`1px solid ${pos<premios?D.gold:D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:big?16:12, fontWeight:900, color:pos<premios?D.gold:D.textSub, flexShrink:0 }}>{pos+1}</div>
+            <Avatar name={e.jugadorNombre} id={e.jugadorId} size={avatarSize} />
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:big?FONT_DISPLAY:"inherit", fontSize:big?22:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
+              <div style={{ fontSize:big?15:12, fontWeight:500, color:"#44503F", marginTop:2 }}>
+                {e.unidadNombre}
+                <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Hoyo {e.holeFisico}
+                {e.ts && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{fmtHora(e.ts)}</>}
               </div>
-            ) : (
-              <span className="h19-hio-pulse" style={{ fontSize:big?13:10, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:0.4, marginRight:4, flexShrink:0, display:"flex", alignItems:"center", gap:4, whiteSpace:"nowrap" }}><Sparkles size={big?14:11}/>Hole in one</span>
-            )
-          ) : (
-            premioNombre && <span style={{ fontSize:big?13:10, fontWeight:700, color:D.gold, textTransform:"uppercase", letterSpacing:0.4, marginRight:4, flexShrink:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:big?160:104, textAlign:"right" }}>{premioNombre}</span>
+            </div>
+            {pos<premios && <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4, flexShrink:0 }}/>}
+            <div style={{ fontSize:big?32:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text, minWidth:big?150:96, textAlign:"right", fontVariantNumeric:"tabular-nums", flexShrink:0 }}><CountUp value={e.cm} decimals={2} /> <span style={{ fontSize:big?15:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
+          </div>
+          {(esHoleInOne || premioNombre) && (
+            <div style={{ marginLeft:big?(36+16+avatarSize):(24+10+avatarSize), marginTop:big?10:6 }}>
+              {esHoleInOne ? (
+                premioNombre ? (
+                  <div style={{ position:"relative", minHeight:big?44:26 }}>
+                    <div className="h19-hio-flash-a" style={{ fontFamily:FONT_DISPLAY, fontSize:big?34:19, fontWeight:800, color:D.gold, textTransform:"uppercase", letterSpacing:0.6, lineHeight:1.1 }}>{premioNombre}</div>
+                    <div className="h19-hio-flash-b" style={{ position:"absolute", left:0, top:0, fontFamily:FONT_DISPLAY, fontSize:big?34:19, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:0.6, lineHeight:1.1, display:"flex", alignItems:"center", gap:big?10:6, whiteSpace:"nowrap" }}><Sparkles size={big?30:18}/>Hole in one</div>
+                  </div>
+                ) : (
+                  <div className="h19-hio-pulse" style={{ fontFamily:FONT_DISPLAY, fontSize:big?34:19, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:0.6, display:"flex", alignItems:"center", gap:big?10:6 }}><Sparkles size={big?30:18}/>Hole in one</div>
+                )
+              ) : (
+                <div style={{ fontFamily:FONT_DISPLAY, fontSize:big?24:15, fontWeight:800, color:D.gold, textTransform:"uppercase", letterSpacing:0.5 }}>{premioNombre}</div>
+              )}
+            </div>
           )}
-          {pos<premios && <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4, flexShrink:0 }}/>}
-          <div style={{ fontSize:big?32:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text, minWidth:big?150:96, textAlign:"right", fontVariantNumeric:"tabular-nums", flexShrink:0 }}><CountUp value={e.cm} decimals={2} /> <span style={{ fontSize:big?15:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
         </div>
         );
       })}
