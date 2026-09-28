@@ -2269,9 +2269,9 @@ function AdminTorneoApp({ onExit }) {
           <Card>
             <SLabel>Número de premios (lugares) {oyesModo==="hoyo" ? "por hoyo" : ""}</SLabel>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <button onClick={() => setOyesPremios(Math.max(1,oyesPremios-1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.border}`,background:"transparent",color:D.text,cursor:"pointer",fontSize:18 }}>−</button>
+              <button onClick={() => setOyesPremios(v => Math.max(1,(Number(v)||0)-1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.border}`,background:"transparent",color:D.text,cursor:"pointer",fontSize:18 }}>−</button>
               <div style={{ flex:1, textAlign:"center", fontSize:20, fontWeight:900, color:D.gold }}>{oyesPremios}</div>
-              <button onClick={() => setOyesPremios(Math.min(10,oyesPremios+1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:18 }}>+</button>
+              <button onClick={() => setOyesPremios(v => Math.min(10,(Number(v)||0)+1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:18 }}>+</button>
             </div>
           </Card>
 
