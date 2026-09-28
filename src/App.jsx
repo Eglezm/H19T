@@ -1111,7 +1111,7 @@ function TeamPlayView({ codigo, onExit }) {
               </div>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
                 <button onClick={() => setScore(-1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.border}`,background:D.surface,color:D.text,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>−</button>
-                <div style={{ width:60, textAlign:"center", fontSize:38, fontFamily:FONT_DISPLAY, fontWeight:700 }}><CountUp value={suScore ?? par} duration={280} /></div>
+                <div key={`suScore-${hole}-${suScore}`} style={{ width:60, textAlign:"center", fontSize:38, fontFamily:FONT_DISPLAY, fontWeight:700 }}><CountUp value={suScore ?? par} duration={280} /></div>
                 <button onClick={() => setScore(1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
               </div>
               <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:10 }}>{suScore===null||suScore===undefined ? "Aún no capturado (por defecto: par)" : "Capturado"}</div>
@@ -2621,7 +2621,7 @@ function AdminTorneoApp({ onExit }) {
                     {b && <span style={{ fontSize:9, padding:"2px 6px", borderRadius:8, fontWeight:700, background:b.bg, color:b.fg }}>{b.label}</span>}
                     <div style={{ flex:1 }} />
                     <button onClick={() => ajustarScoreAdmin(u.id, h, -1)} style={{ width:30,height:30,borderRadius:"50%",border:`1px solid ${D.border}`,background:D.surface,color:D.text,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center" }}>−</button>
-                    <div style={{ width:28, textAlign:"center", fontSize:16, fontWeight:900 }}>{s ?? "—"}</div>
+                    <div key={`score-${pendingKey}-${s}`} style={{ width:28, textAlign:"center", fontSize:16, fontWeight:900 }}>{s ?? "—"}</div>
                     <button onClick={() => ajustarScoreAdmin(u.id, h, 1)} style={{ width:30,height:30,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
                     {s !== null && s !== undefined && (
                       <button onClick={() => borrarScoreAdmin(u.id, h)} style={{ padding:"5px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><X size={14}/></button>
