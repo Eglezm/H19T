@@ -825,12 +825,16 @@ function OyesLiveView({ torneo, big }) {
     );
   }
   const premios = torneo.oyes.premios || 3;
+  const premiosNombres = torneo.oyes.premiosNombres || [];
   const grupos = clasificacionOyes(torneo);
   const RankList = ({ ranking, showHole }) => (
     <>
       {ranking.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:big?20:14, fontSize:big?15:13 }}>Aún no hay anotaciones</div>}
-      {ranking.map((e, pos) => (
-        <div key={e.jugadorId} style={{ display:"flex", alignItems:"center", gap:big?16:10, padding:big?"14px 0":"9px 0", borderBottom:pos<ranking.length-1?`1px solid ${D.border}`:"none", background:pos<premios?D.goldDim+"55":"transparent" }}>
+      {ranking.map((e, pos) => {
+        const esHoleInOne = pos === 0 && Math.round((e.cm||0)*100) === 0;
+        const premioNombre = pos<premios ? (premiosNombres[pos]||"").trim() : "";
+        return (
+        <div key={e.jugadorId} className={esHoleInOne ? "h19-hio-row" : undefined} style={{ display:"flex", alignItems:"center", gap:big?16:10, padding:big?"14px 0":"9px 0", borderBottom:pos<ranking.length-1?`1px solid ${D.border}`:"none", background:pos<premios?D.goldDim+"55":"transparent", borderRadius:esHoleInOne?10:0 }}>
           <div style={{ width:big?36:24, height:big?36:24, borderRadius:"50%", background:pos<premios?D.goldDim:D.surface, border:`1px solid ${pos<premios?D.gold:D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:big?16:12, fontWeight:900, color:pos<premios?D.gold:D.textSub, flexShrink:0 }}>{pos+1}</div>
           <Avatar name={e.jugadorNombre} id={e.jugadorId} size={big?40:28} />
           <div style={{ flex:1, minWidth:0 }}>
@@ -841,10 +845,23 @@ function OyesLiveView({ torneo, big }) {
               {e.ts && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{fmtHora(e.ts)}</>}
             </div>
           </div>
+          {esHoleInOne ? (
+            premioNombre ? (
+              <div style={{ position:"relative", minWidth:big?160:104, height:big?20:14, marginRight:4, flexShrink:0 }}>
+                <span className="h19-hio-flash-a" style={{ position:"absolute", right:0, top:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:big?160:104, fontSize:big?13:10, fontWeight:800, color:D.gold, textTransform:"uppercase", letterSpacing:0.4 }}>{premioNombre}</span>
+                <span className="h19-hio-flash-b" style={{ position:"absolute", right:0, top:0, whiteSpace:"nowrap", fontSize:big?13:10, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:0.4, display:"flex", alignItems:"center", gap:4 }}><Sparkles size={big?14:11}/>Hole in one</span>
+              </div>
+            ) : (
+              <span className="h19-hio-pulse" style={{ fontSize:big?13:10, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:0.4, marginRight:4, flexShrink:0, display:"flex", alignItems:"center", gap:4, whiteSpace:"nowrap" }}><Sparkles size={big?14:11}/>Hole in one</span>
+            )
+          ) : (
+            premioNombre && <span style={{ fontSize:big?13:10, fontWeight:700, color:D.gold, textTransform:"uppercase", letterSpacing:0.4, marginRight:4, flexShrink:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:big?160:104, textAlign:"right" }}>{premioNombre}</span>
+          )}
           {pos<premios && <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4, flexShrink:0 }}/>}
           <div style={{ fontSize:big?32:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text, minWidth:big?150:96, textAlign:"right", fontVariantNumeric:"tabular-nums", flexShrink:0 }}><CountUp value={e.cm} decimals={2} /> <span style={{ fontSize:big?15:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
         </div>
-      ))}
+        );
+      })}
     </>
   );
   return (
@@ -1381,6 +1398,7 @@ function AdminTorneoApp({ onExit }) {
   const [oyesModo, setOyesModo] = useState("general");
   const [oyesHoles, setOyesHoles] = useState([]);
   const [oyesPremios, setOyesPremios] = useState(3);
+  const [oyesPremiosNombres, setOyesPremiosNombres] = useState([]); // nombre del premio por lugar, ej. "Viaje a Cancún"
   const [oyesSyncedFor, setOyesSyncedFor] = useState(null);
   const [logoCampoObj, setLogoCampoObj] = useState(null);
   const [logoTorneoObj, setLogoTorneoObj] = useState(null);
@@ -1476,6 +1494,7 @@ function AdminTorneoApp({ onExit }) {
         setOyesModo(torneo.oyes.modo || "general");
         setOyesHoles(torneo.oyes.holes || []);
         setOyesPremios(torneo.oyes.premios || 3);
+        setOyesPremiosNombres(torneo.oyes.premiosNombres || []);
       }
       setOyesSyncedFor(torneoId);
     }
@@ -1640,11 +1659,18 @@ function AdminTorneoApp({ onExit }) {
   const toggleOyesHole = (h) => setOyesHoles(prev => prev.includes(h) ? prev.filter(x=>x!==h) : [...prev, h].sort((a,b)=>a-b));
   const generarPasswordOyes = () => set(ref(db, `torneos/${torneoId}/oyes/password`), genPassword());
   const guardarConfigOyes = () => {
+    const premiosFinal = Math.max(1, Math.min(10, parseInt(oyesPremios, 10) || 1));
+    const premiosNombresFinal = Array.from({ length: premiosFinal }, (_, i) => (oyesPremiosNombres[i] || "").trim());
     set(ref(db, `torneos/${torneoId}/oyes`), {
-      modo: oyesModo, holes: oyesHoles, premios: oyesPremios,
+      modo: oyesModo, holes: oyesHoles, premios: premiosFinal, premiosNombres: premiosNombresFinal,
       password: torneo?.oyes?.password || genPassword(),
     });
   };
+  const setOyesPremioNombre = (i, valor) => setOyesPremiosNombres(prev => {
+    const next = prev.slice();
+    next[i] = valor;
+    return next;
+  });
   const compartirOyesWhatsapp = () => {
     const urlAnotar = `${window.location.origin}${window.location.pathname}?oyes=${torneoId}`;
     const urlVer = `${window.location.origin}${window.location.pathname}?torneo=${torneoId}&vista=oyes`;
@@ -2269,9 +2295,44 @@ function AdminTorneoApp({ onExit }) {
           <Card>
             <SLabel>Número de premios (lugares) {oyesModo==="hoyo" ? "por hoyo" : ""}</SLabel>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <button onClick={() => setOyesPremios(v => Math.max(1,(Number(v)||0)-1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.border}`,background:"transparent",color:D.text,cursor:"pointer",fontSize:18 }}>−</button>
-              <div style={{ flex:1, textAlign:"center", fontSize:20, fontWeight:900, color:D.gold }}>{oyesPremios}</div>
-              <button onClick={() => setOyesPremios(v => Math.min(10,(Number(v)||0)+1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:18 }}>+</button>
+              <button onClick={() => setOyesPremios(v => Math.max(1,(Number(v)||0)-1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.border}`,background:"transparent",color:D.text,cursor:"pointer",fontSize:18,flexShrink:0 }}>−</button>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                step={1}
+                value={oyesPremios}
+                onChange={e => {
+                  const raw = e.target.value;
+                  if (raw === "") { setOyesPremios(""); return; }
+                  const n = parseInt(raw, 10);
+                  if (!isNaN(n)) setOyesPremios(Math.max(1, Math.min(10, n)));
+                }}
+                onBlur={e => {
+                  const n = parseInt(e.target.value, 10);
+                  setOyesPremios(isNaN(n) ? 1 : Math.max(1, Math.min(10, n)));
+                }}
+                style={{ flex:1, textAlign:"center", fontSize:20, fontWeight:900, color:D.gold, border:`1px solid ${D.border}`, borderRadius:10, padding:"6px 4px", background:D.surface, boxSizing:"border-box" }}
+              />
+              <button onClick={() => setOyesPremios(v => Math.min(10,(Number(v)||0)+1))} style={{ width:34,height:34,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:18,flexShrink:0 }}>+</button>
+            </div>
+          </Card>
+
+          <Card>
+            <SLabel>Premio por lugar (opcional)</SLabel>
+            <div style={{ fontSize:11, color:D.textSub, marginBottom:10 }}>Ej. "Premio en efectivo", "Bolsa de golf", "Palos de golf", "Viaje a Cancún". Aparecerá en la pantalla de O'Yes junto a cada lugar premiado.</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {Array.from({ length: Math.max(1, Math.min(10, parseInt(oyesPremios,10)||1)) }).map((_, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ width:26, height:26, borderRadius:"50%", background:D.goldDim, border:`1px solid ${D.gold}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:900, color:D.gold, flexShrink:0 }}>{i+1}</div>
+                  <input
+                    value={oyesPremiosNombres[i] || ""}
+                    onChange={e => setOyesPremioNombre(i, e.target.value)}
+                    placeholder={`Premio para el lugar ${i+1}`}
+                    style={{ flex:1, padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }}
+                  />
+                </div>
+              ))}
             </div>
           </Card>
 
