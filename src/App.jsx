@@ -831,7 +831,7 @@ function OyesLiveView({ torneo, big }) {
     <>
       {ranking.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:big?20:14, fontSize:big?15:13 }}>Aún no hay anotaciones</div>}
       {ranking.map((e, pos) => {
-        const esHoleInOne = pos === 0 && Math.round((e.cm||0)*100) === 0;
+        const esHoleInOne = Math.round((e.cm||0)*100) === 0; // cualquier jugador con 0.00cm es hole in one, sin importar su posición
         const premioNombre = pos<premios ? (premiosNombres[pos]||"").trim() : "";
         const avatarSize = big ? 40 : 28;
         return (
