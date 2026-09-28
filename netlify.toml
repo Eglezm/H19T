@@ -1,8 +1,18 @@
 [build]
   command = "npm run build"
   publish = "dist"
-
+ 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+ 
+# index.html nunca debe quedar cacheado (ni en el navegador ni en el CDN de Netlify).
+# Sin esto, es posible que un visitante siga recibiendo una versión vieja del sitio
+# incluso después de un deploy nuevo y correcto — el navegador cargaría un index.html
+# viejo que apunta al archivo .js viejo, y ni el modo incógnito lo arregla porque el
+# cacheo ocurre del lado del servidor/CDN, no del navegador.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
