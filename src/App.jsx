@@ -413,32 +413,36 @@ function hoyoActualDe(u, totalHoyos) {
 // Controla el ciclo automático de páginas de una lista en modo proyección: en vez de saltar
 // directo al siguiente grupo, primero marca fase "leaving" (para que el grupo actual se
 // desvanezca hacia arriba) y solo después de esa transición cambia de página (que entra con su
-// propia animación de aparición). Se detiene en la última página sin repetir desde la primera.
-function usePagedTransition(big, totalPages, showMs = 5000, exitMs = 420) {
+// propia animación de aparición). Al terminar la última página (o si solo hay una), avisa una
+// sola vez con onComplete — así quien lo use (la pantalla de proyección) sabe exactamente cuándo
+// pasar a la siguiente tarjeta, en vez de adivinar cuánto debería tardar.
+function usePagedTransition(big, totalPages, showMs = 5000, exitMs = 420, onComplete) {
   const [page, setPage] = useState(0);
   const [phase, setPhase] = useState("showing"); // "showing" | "leaving"
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
   useEffect(() => {
     setPage(0);
     setPhase("showing");
-    if (!big || totalPages <= 1) return;
+    if (!big) return;
     let cancelled = false;
     let currentPage = 0;
     let t1, t2;
     const tick = () => {
       t1 = setTimeout(() => {
         if (cancelled) return;
-        setPhase("leaving");
-        t2 = setTimeout(() => {
-          if (cancelled) return;
-          if (currentPage + 1 < totalPages) {
+        if (currentPage + 1 < totalPages) {
+          setPhase("leaving");
+          t2 = setTimeout(() => {
+            if (cancelled) return;
             currentPage += 1;
             setPage(currentPage);
             setPhase("showing");
             tick();
-          } else {
-            setPhase("showing"); // última página: se queda visible, sin volver a la primera
-          }
-        }, exitMs);
+          }, exitMs);
+        } else {
+          onCompleteRef.current && onCompleteRef.current();
+        }
       }, showMs);
     };
     tick();
@@ -656,13 +660,13 @@ function FranjaPatrocinadores({ torneo, big }) {
 }
 
 // ─── TARJETA DE POSICIONES (reutilizable) ─────────
-function TablaPosiciones({ torneo, highlightId, big }) {
+function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
   const allRows = leaderboard(torneo);
   // En pantalla completa (proyección) ciclamos de 6 en 6 equipos, cambiando cada 5s, para que el texto se lea bien;
   // fuera de pantalla completa se muestra la lista completa (con scroll), como antes.
   const PAGE_SIZE = 6;
   const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
-  const { page, phase } = usePagedTransition(big, totalPages, 5000);
+  const { page, phase } = usePagedTransition(big, totalPages, 5000, 420, onCycleComplete);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
@@ -810,12 +814,12 @@ function TablaPosiciones({ torneo, highlightId, big }) {
   );
 }
 
-function TarjetaHoyoPorHoyo({ torneo, big }) {
+function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete }) {
   const allRows = leaderboard(torneo);
   // En pantalla completa ciclamos de 9 en 9 equipos (misma lógica que TablaPosiciones).
   const PAGE_SIZE = 9;
   const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
-  const { page, phase } = usePagedTransition(big, totalPages, 8000);
+  const { page, phase } = usePagedTransition(big, totalPages, 8000, 420, onCycleComplete);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const pares = torneo.pares;
@@ -901,8 +905,22 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
 }
 
 // ─── CLASIFICACIÓN DE O'YES (reutilizable) ────────
-function OyesLiveView({ torneo, big }) {
-  if (!torneo.oyes || !torneo.oyes.holes || torneo.oyes.holes.length===0) {
+function OyesLiveView({ torneo, big, onCycleComplete }) {
+  const sinOyes = !torneo.oyes || !torneo.oyes.holes || torneo.oyes.holes.length===0;
+  const premios = torneo.oyes?.premios || 3;
+  const premiosNombres = torneo.oyes?.premiosNombres || [];
+  const grupos = sinOyes ? [] : clasificacionOyes(torneo);
+  // El O'Yes puede mostrar varias tarjetas a la vez (una por hoyo). Solo avisamos que el ciclo
+  // completo terminó (para pasar a la siguiente pantalla) cuando TODAS ya llegaron a su última
+  // página, no con que termine la primera. (Los hooks van antes del return condicional de abajo
+  // para no violar las reglas de hooks de React.)
+  const completedRef = useRef(0);
+  useEffect(() => { completedRef.current = 0; }, [grupos.length, big]);
+  const handleGroupComplete = () => {
+    completedRef.current += 1;
+    if (completedRef.current >= grupos.length && onCycleComplete) onCycleComplete();
+  };
+  if (sinOyes) {
     return (
       <Card tv={big} style={big ? { padding:24 } : {}}>
         <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> O'Yes</SLabel>
@@ -910,13 +928,10 @@ function OyesLiveView({ torneo, big }) {
       </Card>
     );
   }
-  const premios = torneo.oyes.premios || 3;
-  const premiosNombres = torneo.oyes.premiosNombres || [];
-  const grupos = clasificacionOyes(torneo);
   return (
     <>
       {grupos.map((g, gi) => (
-        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} />
+        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={big ? handleGroupComplete : undefined} />
       ))}
     </>
   );
@@ -924,10 +939,10 @@ function OyesLiveView({ torneo, big }) {
 
 // Tarjeta de un grupo de O'Yes (un hoyo, o la clasificación general) — en pantalla completa
 // cicla de 6 en 6 jugadores, cambiando cada 5s.
-function OyesGroupCard({ g, premios, premiosNombres, big }) {
+function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete }) {
   const PAGE_SIZE = 6;
   const totalPages = big ? Math.max(1, Math.ceil(g.ranking.length / PAGE_SIZE)) : 1;
-  const { page, phase } = usePagedTransition(big, totalPages, 5000);
+  const { page, phase } = usePagedTransition(big, totalPages, 5000, 420, onCycleComplete);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const pageRanking = big ? g.ranking.slice(startIdx, startIdx+PAGE_SIZE) : g.ranking;
   return (
@@ -1010,9 +1025,11 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, r
 // Ajusta automáticamente el tamaño de su contenido para que quepa por completo en el alto
 // disponible, sin necesitar scroll — pensado para la pantalla de un club en modo proyección,
 // donde nadie está ahí para desplazar la pantalla. Mide el alto natural del contenido contra
-// el alto disponible y, si no cabe, lo reduce (transform: scale) compensando el ancho para que
-// siga ocupando el 100% del espacio horizontal. Se re-mide solo cuando el contenido o el
-// contenedor cambian de tamaño (ResizeObserver), así que funciona igual en cualquier pantalla.
+// el alto disponible y, si no cabe, lo reduce con transform:scale. Importante: NO se toca el
+// ancho del contenido para compensar el escalado (eso causaba que, en varios celulares, medir
+// el ancho cambiado disparara una nueva medición, que a su vez volvía a cambiar el ancho... un
+// ciclo que se veía como un temblor constante e ilegible). El pequeño margen en blanco a los
+// lados cuando se reduce el tamaño es preferible a esa inestabilidad.
 function AutoFitScale({ children }) {
   const outerRef = useRef(null);
   const innerRef = useRef(null);
@@ -1020,22 +1037,25 @@ function AutoFitScale({ children }) {
   useLayoutEffect(() => {
     const outer = outerRef.current, inner = innerRef.current;
     if (!outer || !inner) return;
+    let raf = null;
     const measure = () => {
+      raf = null;
       const naturalHeight = inner.scrollHeight;
       const availableHeight = outer.clientHeight;
       if (naturalHeight <= 0 || availableHeight <= 0) return;
       const s = Math.min(1, availableHeight / naturalHeight);
-      setScale(prev => (Math.abs(prev - s) > 0.004 ? s : prev));
+      setScale(prev => (Math.abs(prev - s) > 0.01 ? s : prev));
     };
-    measure();
-    const ro = new ResizeObserver(measure);
+    const scheduleMeasure = () => { if (raf === null) raf = requestAnimationFrame(measure); };
+    scheduleMeasure();
+    const ro = new ResizeObserver(scheduleMeasure);
     ro.observe(outer);
     ro.observe(inner);
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); if (raf !== null) cancelAnimationFrame(raf); };
   }, []);
   return (
     <div ref={outerRef} style={{ height:"100%", overflow:"hidden" }}>
-      <div ref={innerRef} style={{ transform:`scale(${scale})`, transformOrigin:"top left", width:`${100/scale}%` }}>
+      <div ref={innerRef} style={{ transform:`scale(${scale})`, transformOrigin:"top center" }}>
         {children}
       </div>
     </div>
@@ -1059,36 +1079,20 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const autoViews = hayOyesFlag ? ["posiciones","tarjeta","oyes"] : ["posiciones","tarjeta"];
   const autoViewActual = autoViews[autoSlide % autoViews.length];
 
-  // Cuánto durará la pantalla actual en modo automático: depende de cuántas páginas internas
-  // tiene que terminar de mostrar (Posiciones/Tarjeta/O'Yes ciclan de a 6 o 9 en 9 dentro de sí
-  // mismas) — así no cambia de pantalla a medio ciclo, ni se queda repitiendo el último grupo
-  // esperando a que se cumplan los 12s de antes.
-  const equiposCount = torneo ? leaderboard(torneo).length : 0;
-  const oyesGruposActuales = (torneo && hayOyesFlag) ? clasificacionOyes(torneo) : [];
-  const PAGE_SHOW_MS = { posiciones:5000, tarjeta:8000, oyes:5000 };
-  const PAGE_EXIT_MS = 420;
-  const HOLD_EXTRA_MS = 900; // margen para que la última página se note antes de cambiar de pantalla
-  const paginasPorVista = {
-    posiciones: Math.max(1, Math.ceil(equiposCount/6)),
-    tarjeta: Math.max(1, Math.ceil(equiposCount/9)),
-    oyes: Math.max(1, ...oyesGruposActuales.map(g => Math.ceil((g.ranking?.length||0)/6))),
-  };
-  const autoViewDurationMs = paginasPorVista[autoViewActual] * (PAGE_SHOW_MS[autoViewActual] + PAGE_EXIT_MS) + HOLD_EXTRA_MS;
-
-  // Modo automático (proyección): cicla Posiciones → Tarjeta → O'Yes, con fade+slide, esperando
-  // en cada una lo que tarde en mostrar todas sus páginas internas antes de pasar a la siguiente.
-  useEffect(() => {
-    if (vista !== "auto") return;
-    const id = setTimeout(() => setAutoSlide(s => (s+1) % autoViews.length), autoViewDurationMs);
-    return () => clearTimeout(id);
-  }, [vista, autoSlide, autoViewDurationMs, autoViews.length]);
+  // Modo automático (proyección): cicla Posiciones → Tarjeta → O'Yes. Cada tarjeta avisa
+  // (onCycleComplete) exactamente cuándo terminó de mostrar todas sus páginas internas — así no
+  // se adivina un tiempo fijo que podría cambiar de pantalla antes de tiempo o quedarse repitiendo
+  // el último grupo esperando a que se cumpla un plazo que ya pasó.
+  const goToNextAutoView = () => setAutoSlide(s => (s+1) % autoViews.length);
 
   if (loading) return <Spinner label="Conectando..." />;
   if (!torneo) return <Spinner label="Torneo no encontrado" />;
 
   const campoNombre = CAMPOS[torneo.campo]?.nombre || torneo.campo;
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
-  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", height:"100vh", width:"100%", margin:"0 auto", display:"flex", flexDirection:"column", overflow:"hidden" };
+  // 100dvh (alto de viewport "dinámico") en vez de 100vh evita que la barra de direcciones del
+  // navegador móvil, al aparecer/ocultarse, dispare mediciones y reajustes de tamaño en cadena.
+  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", height:"100dvh", width:"100%", margin:"0 auto", display:"flex", flexDirection:"column", overflow:"hidden" };
   const hayOyes = torneo.oyes?.holes?.length>0;
   const autoViewLabel = { posiciones:"Posiciones", tarjeta:"Tarjeta", oyes:"O'Yes" }[autoViewActual];
   const autoViewIcon = { posiciones:<Trophy size={13}/>, tarjeta:<ClipboardList size={13}/>, oyes:<Target size={13}/> }[autoViewActual];
@@ -1145,9 +1149,9 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
           <AutoFitScale>
             {vista === "auto" ? (
               <div key={autoSlide} className="h19-tab-panel">
-                {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} />}
-                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
-                {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} />}
+                {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
+                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
+                {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
               </div>
             ) : vista === "oyes" ? (
               <OyesLiveView torneo={torneo} big={tvMode} />
@@ -1162,9 +1166,9 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
           <>
             {vista === "auto" ? (
               <div key={autoSlide} className="h19-tab-panel">
-                {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} />}
-                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
-                {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} />}
+                {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
+                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
+                {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
               </div>
             ) : vista === "oyes" ? (
               <OyesLiveView torneo={torneo} big={tvMode} />
