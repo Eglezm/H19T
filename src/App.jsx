@@ -443,8 +443,21 @@ function usePagedTransition(big, totalPages, showMs = 5000, exitMs = 420, onComp
             setPhase("showing");
             tick();
           }, exitMs);
+        } else if (onCompleteRef.current) {
+          // Hay otra pantalla a la que pasar (modo Automático): avisamos y paramos aquí, la
+          // pantalla que nos contiene se encarga de cambiarnos por la siguiente tarjeta.
+          onCompleteRef.current();
         } else {
-          onCompleteRef.current && onCompleteRef.current();
+          // No hay otra pantalla (modo "Solo X" fijo): en vez de quedarnos congelados en el
+          // último grupo, reiniciamos el ciclo desde el principio.
+          setPhase("leaving");
+          t2 = setTimeout(() => {
+            if (cancelled) return;
+            currentPage = 0;
+            setPage(0);
+            setPhase("showing");
+            tick();
+          }, exitMs);
         }
       }, showMs);
     };
@@ -819,10 +832,10 @@ function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
 
 function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete }) {
   const allRows = leaderboard(torneo);
-  // En pantalla completa ciclamos de 9 en 9 equipos (misma lógica que TablaPosiciones).
-  const PAGE_SIZE = 9;
+  // En pantalla completa ciclamos de 6 en 6 equipos cada 5s (igual que Posiciones y O'Yes, para uniformidad).
+  const PAGE_SIZE = 6;
   const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
-  const { page, phase } = usePagedTransition(big, totalPages, 8000, 420, onCycleComplete);
+  const { page, phase } = usePagedTransition(big, totalPages, 5000, 420, onCycleComplete);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const pares = torneo.pares;
@@ -934,7 +947,7 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
   return (
     <>
       {grupos.map((g, gi) => (
-        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={big ? handleGroupComplete : undefined} />
+        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={(big && onCycleComplete) ? handleGroupComplete : undefined} />
       ))}
     </>
   );
@@ -1171,7 +1184,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
                 {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
-                {hayOyes && <OyesLiveView torneo={torneo} big={tvMode} />}
+                {vista === "todo" && hayOyes && <OyesLiveView torneo={torneo} big={tvMode} />}
               </div>
             )}
           </AutoFitScale>
@@ -1189,7 +1202,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <>
                 {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
                 {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
-                {hayOyes && <OyesLiveView torneo={torneo} big={tvMode} />}
+                {vista === "todo" && hayOyes && <OyesLiveView torneo={torneo} big={tvMode} />}
               </>
             )}
             <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:8 }}>Vista de solo lectura · Actualización automática</div>
