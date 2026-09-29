@@ -424,7 +424,10 @@ function usePagedTransition(big, totalPages, showMs = 5000, exitMs = 420, onComp
   useEffect(() => {
     setPage(0);
     setPhase("showing");
-    if (!big) return;
+    // Nota: seguimos incluso cuando !big (fuera de pantalla completa) — ahí totalPages siempre
+    // es 1, así que esto solo espera "showMs" y avisa una vez con onComplete, sin paginar nada.
+    // Es lo que hace que el ciclo automático de pantallas (Posiciones → Tarjeta → O'Yes) también
+    // siga funcionando fuera del modo pantalla completa, no solo dentro de él.
     let cancelled = false;
     let currentPage = 0;
     let t1, t2;
@@ -1103,7 +1106,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginBottom:tvMode?4:0 }} className="no-print">
           {tvMode && (
             <select value={vista} onChange={e=>setVista(e.target.value)} style={{ padding:"4px 9px", border:`1px solid ${D.gold}`, borderRadius:14, background:D.goldDim, color:D.gold, fontSize:10, fontWeight:700 }}>
-              <option value="todo">Posiciones + Tarjeta</option>
+              <option value="todo">Posiciones + Tarjeta{hayOyes?" + O'Yes":""}</option>
               <option value="tarjeta">Solo Tarjeta</option>
               <option value="posiciones">Solo Posiciones</option>
               {hayOyes && <option value="oyes">Solo O'Yes</option>}
@@ -1159,6 +1162,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
                 {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+                {hayOyes && <OyesLiveView torneo={torneo} big={tvMode} />}
               </div>
             )}
           </AutoFitScale>
@@ -1176,6 +1180,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
               <>
                 {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
                 {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+                {hayOyes && <OyesLiveView torneo={torneo} big={tvMode} />}
               </>
             )}
             <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:8 }}>Vista de solo lectura · Actualización automática</div>
