@@ -620,7 +620,19 @@ function FranjaPatrocinadores({ torneo, big }) {
 
 // ─── TARJETA DE POSICIONES (reutilizable) ─────────
 function TablaPosiciones({ torneo, highlightId, big }) {
-  const rows = leaderboard(torneo);
+  const allRows = leaderboard(torneo);
+  // En pantalla completa (proyección) ciclamos de 9 en 9 equipos para que el texto se lea bien;
+  // fuera de pantalla completa se muestra la lista completa (con scroll), como antes.
+  const PAGE_SIZE = 9;
+  const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    if (!big || totalPages <= 1) { setPage(0); return; }
+    const id = setInterval(() => setPage(p => (p+1) % totalPages), 8000);
+    return () => clearInterval(id);
+  }, [big, totalPages]);
+  const startIdx = big ? page*PAGE_SIZE : 0;
+  const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
   // Leaderboard editorial: la jerarquía surge de tipografía, número y espacio — sin trofeos,
   // medallas ni esquema oro/plata/bronce. Solo el 1er lugar lleva un acento cromático de marca;
@@ -685,8 +697,9 @@ function TablaPosiciones({ torneo, highlightId, big }) {
 
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación</SLabel>
-      {rows.map((u, pos) => {
+      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalPages>1 && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}> · Equipos {startIdx+1}–{Math.min(startIdx+PAGE_SIZE, allRows.length)} de {allRows.length}</span>}</SLabel>
+      {rows.map((u, localPos) => {
+        const pos = startIdx + localPos;
         const top3 = pos < 3;
         const r = top3 ? RANK[pos] : null;
         const isMe = u.id === highlightId;
@@ -695,10 +708,10 @@ function TablaPosiciones({ torneo, highlightId, big }) {
         return (
           <div key={u.id} ref={el => rowRefs.current[u.id]=el}
             className="h19-champion-in" style={{
-              animationDelay:`${Math.min(pos*40,400)}ms`,
+              animationDelay:`${Math.min(localPos*40,400)}ms`,
               display:"flex", alignItems:"center", gap:big?16:11,
               padding: top3 ? (big?"15px 14px":"11px 10px") : (big?"14px 14px":"10px 10px"),
-              borderBottom:pos<rows.length-1?`1px solid ${D.border}`:"none",
+              borderBottom:localPos<rows.length-1?`1px solid ${D.border}`:"none",
               background: top3 ? TIER_BG[pos] : (isMe ? D.goldDim+"40" : "transparent"),
               borderLeft: top3 ? `2px solid ${TIER_BORDER[pos]}` : "2px solid transparent",
               outline: (isMe && top3) ? `2px solid ${D.gold}` : "none", outlineOffset:-2,
@@ -733,17 +746,35 @@ function TablaPosiciones({ torneo, highlightId, big }) {
         );
       })}
       {rows.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Aún no hay unidades</div>}
+      {big && totalPages>1 && (
+        <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
+          {Array.from({length:totalPages}).map((_,i) => (
+            <div key={i} style={{ width:i===page?18:7, height:7, borderRadius:4, background:i===page?D.gold:D.border, transition:"all 300ms ease" }} />
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
 
 function TarjetaHoyoPorHoyo({ torneo, big }) {
-  const rows = leaderboard(torneo);
+  const allRows = leaderboard(torneo);
+  // En pantalla completa ciclamos de 9 en 9 equipos (misma lógica que TablaPosiciones).
+  const PAGE_SIZE = 9;
+  const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    if (!big || totalPages <= 1) { setPage(0); return; }
+    const id = setInterval(() => setPage(p => (p+1) % totalPages), 8000);
+    return () => clearInterval(id);
+  }, [big, totalPages]);
+  const startIdx = big ? page*PAGE_SIZE : 0;
+  const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const pares = torneo.pares;
   const fs = big ? 20 : 11;
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida</span></SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida{big && totalPages>1 ? ` · Equipos ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, allRows.length)} de ${allRows.length}` : ""}</span></SLabel>
       <div style={{ overflowX:"auto" }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, minWidth:pares.length*(big?46:32)+(big?140:90) }}>
           <thead>
@@ -810,6 +841,13 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
           <span><span style={{ display:"inline-block", width:8, height:8, borderRadius:2, background:teeStyle("Azules").bg, border:`1px solid ${teeStyle("Azules").border}`, marginRight:4 }} />Hoyos 10–18: Tee Azules</span>
         </div>
       )}
+      {big && totalPages>1 && (
+        <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
+          {Array.from({length:totalPages}).map((_,i) => (
+            <div key={i} style={{ width:i===page?18:7, height:7, borderRadius:4, background:i===page?D.gold:D.border, transition:"all 300ms ease" }} />
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -827,15 +865,54 @@ function OyesLiveView({ torneo, big }) {
   const premios = torneo.oyes.premios || 3;
   const premiosNombres = torneo.oyes.premiosNombres || [];
   const grupos = clasificacionOyes(torneo);
-  const RankList = ({ ranking, showHole }) => (
+  return (
+    <>
+      {grupos.map((g, gi) => (
+        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} />
+      ))}
+    </>
+  );
+}
+
+// Tarjeta de un grupo de O'Yes (un hoyo, o la clasificación general) — en pantalla completa
+// cicla de 10 en 10 jugadores, ya que son los premiados los primeros 10 y así sucesivamente.
+function OyesGroupCard({ g, premios, premiosNombres, big }) {
+  const PAGE_SIZE = 10;
+  const totalPages = big ? Math.max(1, Math.ceil(g.ranking.length / PAGE_SIZE)) : 1;
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    if (!big || totalPages <= 1) { setPage(0); return; }
+    const id = setInterval(() => setPage(p => (p+1) % totalPages), 8000);
+    return () => clearInterval(id);
+  }, [big, totalPages]);
+  const startIdx = big ? page*PAGE_SIZE : 0;
+  const pageRanking = big ? g.ranking.slice(startIdx, startIdx+PAGE_SIZE) : g.ranking;
+  return (
+    <Card tv={big} style={big ? { padding:24 } : {}}>
+      <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, g.ranking.length)} de ${g.ranking.length}` : ""}</span></SLabel>
+      <OyesRankList ranking={pageRanking} startIndex={startIdx} premios={premios} premiosNombres={premiosNombres} big={big} />
+      {big && totalPages>1 && (
+        <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
+          {Array.from({length:totalPages}).map((_,i) => (
+            <div key={i} style={{ width:i===page?18:7, height:7, borderRadius:4, background:i===page?D.gold:D.border, transition:"all 300ms ease" }} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big }) {
+  return (
     <>
       {ranking.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:big?20:14, fontSize:big?15:13 }}>Aún no hay anotaciones</div>}
-      {ranking.map((e, pos) => {
+      {ranking.map((e, localPos) => {
+        const pos = startIndex + localPos;
         const esHoleInOne = Math.round((e.cm||0)*100) === 0; // cualquier jugador con 0.00cm es hole in one, sin importar su posición
         const premioNombre = pos<premios ? (premiosNombres[pos]||"").trim() : "";
         const avatarSize = big ? 40 : 28;
         return (
-        <div key={e.jugadorId} className={esHoleInOne ? "h19-hio-row" : undefined} style={{ display:"flex", flexDirection:"column", padding:big?"14px 0":"9px 0", borderBottom:pos<ranking.length-1?`1px solid ${D.border}`:"none", background:pos<premios?D.goldDim+"55":"transparent", borderRadius:esHoleInOne?10:0 }}>
+        <div key={e.jugadorId} className={esHoleInOne ? "h19-hio-row" : undefined} style={{ display:"flex", flexDirection:"column", padding:big?"14px 0":"9px 0", borderBottom:localPos<ranking.length-1?`1px solid ${D.border}`:"none", background:pos<premios?D.goldDim+"55":"transparent", borderRadius:esHoleInOne?10:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:big?16:10 }}>
             <div style={{ width:big?36:24, height:big?36:24, borderRadius:"50%", background:pos<premios?D.goldDim:D.surface, border:`1px solid ${pos<premios?D.gold:D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:big?16:12, fontWeight:900, color:pos<premios?D.gold:D.textSub, flexShrink:0 }}>{pos+1}</div>
             <Avatar name={e.jugadorNombre} id={e.jugadorId} size={avatarSize} />
@@ -869,16 +946,6 @@ function OyesLiveView({ torneo, big }) {
         </div>
         );
       })}
-    </>
-  );
-  return (
-    <>
-      {grupos.map((g, gi) => (
-        <Card key={gi} tv={big} style={big ? { padding:24 } : {}}>
-          <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total)</span></SLabel>
-          <RankList ranking={g.ranking} showHole={g.hole===null} />
-        </Card>
-      ))}
     </>
   );
 }
