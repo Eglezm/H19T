@@ -10,7 +10,7 @@
       * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
       html, body { background: #F7F6F2; }
       body { margin:0; overflow-x:hidden; }
- 
+
       /* ── SECCIÓN 1: Fondo dinámico (mesh gradient) — código exacto solicitado ── */
       .mesh-bg {
         position: fixed;
@@ -34,7 +34,7 @@
       #bg-grain { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; opacity: 0.03; pointer-events: none; mix-blend-mode: multiply; }
       /* El contenedor de contenido de la app va por encima de las capas de fondo */
       #root { position: relative; z-index: 1; }
- 
+
       /* ── SECCIÓN 2: Glassmorphism moderado — código exacto solicitado (solo tarjetas grandes) ── */
       .card-glass {
         background: rgba(255,255,255,0.75);
@@ -56,7 +56,7 @@
       }
       @keyframes popIn { from { opacity:0; transform:scale(0.9); } to { opacity:1; transform:scale(1); } }
       @keyframes tabSlideIn { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
- 
+
       .h19-card { animation: fadeInUp 420ms cubic-bezier(0.22,1,0.36,1) both; transition: transform 250ms cubic-bezier(0.22,1,0.36,1), box-shadow 250ms cubic-bezier(0.22,1,0.36,1); }
       .h19-card:active { transform: scale(0.99); }
       .h19-btn { transition: transform 220ms cubic-bezier(0.22,1,0.36,1), opacity 220ms ease, box-shadow 220ms ease; }
@@ -71,7 +71,7 @@
       .h19-pop { animation: popIn 320ms cubic-bezier(0.22,1,0.36,1) both; }
       .h19-tab-panel { animation: tabSlideIn 300ms cubic-bezier(0.22,1,0.36,1) both; }
       .h19-reorder-row { transition: transform 420ms cubic-bezier(0.22,1,0.36,1); }
- 
+
       /* ── SECCIÓN 6: Franja de cambio de posición — código exacto solicitado ── */
       .row-position-change {
         position: relative;
@@ -99,20 +99,20 @@
       /* Glow que respira alrededor de la tarjeta del líder, en modo pantalla completa (proyección) */
       @keyframes leaderBreathe { 0%,100% { box-shadow:0 0 0 0 rgba(201,162,39,0.28); opacity:1; } 50% { box-shadow:0 0 22px 6px rgba(201,162,39,0.22); opacity:0.96; } }
       .h19-leader-glow { animation: leaderBreathe 3.6s ease-in-out infinite; }
- 
+
       /* ── Podio: entrada sutil y premium (sin rebotes, sin confeti) ── */
       @keyframes championIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
       @keyframes badgeIn { from { opacity:0; transform:scale(0.88); } to { opacity:1; transform:scale(1); } }
       .h19-champion-in { animation: championIn 550ms cubic-bezier(0.22,1,0.36,1) both; }
       .h19-badge-in { animation: badgeIn 550ms cubic-bezier(0.22,1,0.36,1) both; }
- 
+
       /* ── Franja de patrocinadores: desplazamiento continuo, lento y sin saltos ── */
       @keyframes h19Marquee { from { transform:translateX(0); } to { transform:translateX(-50%); } }
       .h19-marquee-track { display:flex; align-items:center; width:max-content; animation:h19Marquee var(--h19-marquee-duration, 40s) linear infinite; }
       @media (prefers-reduced-motion: reduce) {
         .h19-marquee-track { animation:none; }
       }
- 
+
       /* ── O'Yes: hole in one — alterna el nombre del premio con "Hole in one" ── */
       @keyframes h19HioFlashA { 0%,45% { opacity:1; } 50%,95% { opacity:0; } 100% { opacity:1; } }
       @keyframes h19HioFlashB { 0%,45% { opacity:0; } 50%,95% { opacity:1; } 100% { opacity:0; } }
@@ -127,6 +127,14 @@
       .h19-hio-row { animation: h19HioRowGlow 2.4s ease-in-out infinite; }
       @media (prefers-reduced-motion: reduce) {
         .h19-hio-flash-a, .h19-hio-flash-b, .h19-hio-pulse, .h19-hio-row { animation:none; }
+      }
+
+      /* ── Proyección: al cambiar de página (siguiente grupo de equipos/jugadores), el nuevo
+         grupo sube suavemente en vez de aparecer de golpe ── */
+      @keyframes h19PageRise { from { opacity:0; transform:translateY(26px); } to { opacity:1; transform:translateY(0); } }
+      .h19-page-rise { animation: h19PageRise 550ms cubic-bezier(0.22,1,0.36,1) both; }
+      @media (prefers-reduced-motion: reduce) {
+        .h19-page-rise { animation:none; }
       }
       ::selection { background: rgba(0,86,63,0.18); }
     </style>
