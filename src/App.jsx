@@ -725,16 +725,35 @@ function TablaPosiciones({ torneo, highlightId, big }) {
             <Avatar name={u.nombre} id={u.id} size={top3?r.avatar:fs.avatar} />
             <div style={{ flex:1, minWidth:0 }}>
               {top3 && <div style={{ fontSize:r.label, fontWeight:800, letterSpacing:"0.09em", textTransform:"uppercase", color:r.color, marginBottom:1 }}>{LABELS[pos]}</div>}
-              <div style={{ fontFamily:FONT_DISPLAY, fontSize:top3?r.name:(big?20:fs.name), fontWeight:top3?r.nameW:700, color:D.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                {u.nombre}
-              </div>
-              <div style={{ fontSize:top3?(big?15:12.5):(big?13:11), fontWeight:500, color:"#44503F", marginTop:2, lineHeight:1.5 }}>
-                {u.jugadores && u.jugadores.length>1 && <span>{u.jugadores.map(j=>j.name).join(", ")}</span>}
-                {u.hoyoSalida!=null && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Salió hoyo {u.hoyoSalida+1}</>}
-                <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{torneo.pares.length - u.jugados} hoyos por jugar
-                <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>
-                <span style={{ fontWeight:800, color: hAct===null ? D.success : D.gold }}>{estadoHoyo}</span>
-              </div>
+              {big ? (
+                // En pantalla completa: nombre + info en la misma línea (en vez de una debajo de otra)
+                // para que cada fila ocupe menos alto y el texto pueda verse más grande.
+                <div style={{ display:"flex", alignItems:"baseline", gap:14, minWidth:0 }}>
+                  <div style={{ fontFamily:FONT_DISPLAY, fontSize:top3?r.name:20, fontWeight:top3?r.nameW:700, color:D.text, whiteSpace:"nowrap", flexShrink:0 }}>
+                    {u.nombre}
+                  </div>
+                  <div style={{ fontSize:top3?15:13, fontWeight:500, color:"#44503F", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0 }}>
+                    {u.jugadores && u.jugadores.length>1 && <span>{u.jugadores.map(j=>j.name).join(", ")}</span>}
+                    {u.hoyoSalida!=null && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Salió hoyo {u.hoyoSalida+1}</>}
+                    <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{torneo.pares.length - u.jugados} hoyos por jugar
+                    <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>
+                    <span style={{ fontWeight:800, color: hAct===null ? D.success : D.gold }}>{estadoHoyo}</span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontFamily:FONT_DISPLAY, fontSize:top3?r.name:fs.name, fontWeight:top3?r.nameW:700, color:D.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    {u.nombre}
+                  </div>
+                  <div style={{ fontSize:top3?12.5:11, fontWeight:500, color:"#44503F", marginTop:2, lineHeight:1.5 }}>
+                    {u.jugadores && u.jugadores.length>1 && <span>{u.jugadores.map(j=>j.name).join(", ")}</span>}
+                    {u.hoyoSalida!=null && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Salió hoyo {u.hoyoSalida+1}</>}
+                    <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{torneo.pares.length - u.jugados} hoyos por jugar
+                    <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>
+                    <span style={{ fontWeight:800, color: hAct===null ? D.success : D.gold }}>{estadoHoyo}</span>
+                  </div>
+                </>
+              )}
             </div>
             <div style={{ textAlign:"right", flexShrink:0 }}>
               <div style={{ fontSize:top3?r.score:fs.sub+6, fontWeight:900, lineHeight:1, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</div>
@@ -917,12 +936,27 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big })
             <div style={{ width:big?36:24, height:big?36:24, borderRadius:"50%", background:pos<premios?D.goldDim:D.surface, border:`1px solid ${pos<premios?D.gold:D.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:big?16:12, fontWeight:900, color:pos<premios?D.gold:D.textSub, flexShrink:0 }}>{pos+1}</div>
             <Avatar name={e.jugadorNombre} id={e.jugadorId} size={avatarSize} />
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontFamily:big?FONT_DISPLAY:"inherit", fontSize:big?22:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
-              <div style={{ fontSize:big?15:12, fontWeight:500, color:"#44503F", marginTop:2 }}>
-                {e.unidadNombre}
-                <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Hoyo {e.holeFisico}
-                {e.ts && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{fmtHora(e.ts)}</>}
-              </div>
+              {big ? (
+                // En pantalla completa: nombre + info en la misma línea para que la fila ocupe
+                // menos alto y el texto pueda verse más grande.
+                <div style={{ display:"flex", alignItems:"baseline", gap:14, minWidth:0 }}>
+                  <div style={{ fontFamily:FONT_DISPLAY, fontSize:22, fontWeight:700, whiteSpace:"nowrap", flexShrink:0 }}>{e.jugadorNombre}</div>
+                  <div style={{ fontSize:15, fontWeight:500, color:"#44503F", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0 }}>
+                    {e.unidadNombre}
+                    <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Hoyo {e.holeFisico}
+                    {e.ts && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{fmtHora(e.ts)}</>}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e.jugadorNombre}</div>
+                  <div style={{ fontSize:12, fontWeight:500, color:"#44503F", marginTop:2 }}>
+                    {e.unidadNombre}
+                    <span style={{ color:D.textDim, margin:"0 5px" }}>•</span>Hoyo {e.holeFisico}
+                    {e.ts && <><span style={{ color:D.textDim, margin:"0 5px" }}>•</span>{fmtHora(e.ts)}</>}
+                  </div>
+                </>
+              )}
             </div>
             {pos<premios && <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4, flexShrink:0 }}/>}
             <div style={{ fontSize:big?32:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:pos<premios?D.gold:D.text, minWidth:big?150:96, textAlign:"right", fontVariantNumeric:"tabular-nums", flexShrink:0 }}><CountUp value={e.cm} decimals={2} /> <span style={{ fontSize:big?15:9, fontWeight:600, color:D.textSub, fontFamily:FONT_SANS }}>cm</span></div>
