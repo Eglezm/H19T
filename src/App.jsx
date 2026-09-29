@@ -1103,20 +1103,13 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   return (
     <div style={tvMode ? tvStyle : appStyle}>
       <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"8px 20px 6px":"20px 16px 14px", textAlign:"center", position:"relative", flexShrink:0 }}>
-        <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginBottom:tvMode?4:0 }} className="no-print">
-          {tvMode && (
-            <select value={vista} onChange={e=>setVista(e.target.value)} style={{ padding:"4px 9px", border:`1px solid ${D.gold}`, borderRadius:14, background:D.goldDim, color:D.gold, fontSize:10, fontWeight:700 }}>
-              <option value="todo">Posiciones + Tarjeta{hayOyes?" + O'Yes":""}</option>
-              <option value="tarjeta">Solo Tarjeta</option>
-              <option value="posiciones">Solo Posiciones</option>
-              {hayOyes && <option value="oyes">Solo O'Yes</option>}
-              <option value="auto">Automático (Posiciones → Tarjeta{hayOyes?" → O'Yes":""})</option>
-            </select>
-          )}
-          <button onClick={() => setTvMode(v => { const next = !v; if (next && vista==="todo") setVista("auto"); return next; })} style={{ padding:tvMode?"4px 10px":"6px 12px", border:`1px solid ${D.gold}`, borderRadius:14, background:D.goldDim, color:D.gold, fontSize:tvMode?10:11, fontWeight:700, cursor:"pointer" }}>
-            {tvMode ? <><X size={11}/> Salir</> : <><Monitor size={14}/> Modo pantalla completa</>}
-          </button>
-        </div>
+        {!tvMode && (
+          <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }} className="no-print">
+            <button onClick={() => setTvMode(v => { const next = !v; if (next && vista==="todo") setVista("auto"); return next; })} style={{ padding:"6px 12px", border:`1px solid ${D.gold}`, borderRadius:14, background:D.goldDim, color:D.gold, fontSize:11, fontWeight:700, cursor:"pointer" }}>
+              <Monitor size={14}/> Modo pantalla completa
+            </button>
+          </div>
+        )}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(8px, 2vw, ${tvMode?22:32}px)`, width:"100%" }}>
           {getLogoUrl(torneo?.logos?.campo) && (
             <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
@@ -1134,14 +1127,30 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             </div>
           )}
         </div>
-        <div style={{ marginTop:3, display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:6 }}>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"3px 12px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
-            <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:6, height:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
-            <span style={{ fontSize:10, fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", color:torneo.status==="finalizada"?D.success:D.achievement }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
+        <div style={{ marginTop:3, display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent: tvMode ? "space-between" : "center", gap:6 }}>
+          <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:6 }}>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:tvMode?"3px 12px":"4px 12px", background:torneo.status==="finalizada"?D.greenBg:D.achievementDim, border:`1px solid ${torneo.status==="finalizada"?D.success:D.achievement}`, borderRadius:20 }}>
+              <div className={torneo.status==="finalizada"?"":"h19-live-dot"} style={{ width:6, height:6, borderRadius:"50%", background:torneo.status==="finalizada"?D.success:D.achievement }} />
+              <span style={{ fontSize:10, fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", color:torneo.status==="finalizada"?D.success:D.achievement }}>{torneo.status==="finalizada" ? "Torneo finalizado" : "En vivo"}</span>
+            </div>
+            {vista === "auto" && (
+              <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"3px 10px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
+                <span style={{ fontSize:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel}</span>
+              </div>
+            )}
           </div>
-          {vista === "auto" && (
-            <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"3px 10px", background:D.surface, border:`1px solid ${D.border}`, borderRadius:20 }}>
-              <span style={{ fontSize:10, fontWeight:700, color:D.textSub, display:"inline-flex", alignItems:"center", gap:5 }}>{autoViewIcon} Mostrando: {autoViewLabel} · cambia cada 12s</span>
+          {tvMode && (
+            <div style={{ display:"flex", alignItems:"center", gap:8 }} className="no-print">
+              <select value={vista} onChange={e=>setVista(e.target.value)} style={{ padding:"4px 9px", border:`1px solid ${D.gold}`, borderRadius:14, background:D.goldDim, color:D.gold, fontSize:10, fontWeight:700 }}>
+                <option value="todo">Posiciones + Tarjeta{hayOyes?" + O'Yes":""}</option>
+                <option value="tarjeta">Solo Tarjeta</option>
+                <option value="posiciones">Solo Posiciones</option>
+                {hayOyes && <option value="oyes">Solo O'Yes</option>}
+                <option value="auto">Automático (Posiciones → Tarjeta{hayOyes?" → O'Yes":""})</option>
+              </select>
+              <button onClick={() => setTvMode(v => { const next = !v; if (next && vista==="todo") setVista("auto"); return next; })} style={{ padding:"4px 10px", border:`1px solid ${D.gold}`, borderRadius:14, background:D.goldDim, color:D.gold, fontSize:10, fontWeight:700, cursor:"pointer" }}>
+                <X size={11}/> Salir
+              </button>
             </div>
           )}
         </div>
