@@ -1057,15 +1057,31 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
 
   const hayOyesFlag = torneo?.oyes?.holes?.length>0;
   const autoViews = hayOyesFlag ? ["posiciones","tarjeta","oyes"] : ["posiciones","tarjeta"];
+  const autoViewActual = autoViews[autoSlide % autoViews.length];
 
-  // Modo automático (proyección): cicla Posiciones → Tarjeta → O'Yes cada 12s, con fade+slide.
-  // Corre siempre, sin pausarse por interacciones (durante un torneo hay demasiadas como para
-  // que valga la pena pausar — se quedaría pausado casi todo el tiempo).
+  // Cuánto durará la pantalla actual en modo automático: depende de cuántas páginas internas
+  // tiene que terminar de mostrar (Posiciones/Tarjeta/O'Yes ciclan de a 6 o 9 en 9 dentro de sí
+  // mismas) — así no cambia de pantalla a medio ciclo, ni se queda repitiendo el último grupo
+  // esperando a que se cumplan los 12s de antes.
+  const equiposCount = torneo ? leaderboard(torneo).length : 0;
+  const oyesGruposActuales = (torneo && hayOyesFlag) ? clasificacionOyes(torneo) : [];
+  const PAGE_SHOW_MS = { posiciones:5000, tarjeta:8000, oyes:5000 };
+  const PAGE_EXIT_MS = 420;
+  const HOLD_EXTRA_MS = 900; // margen para que la última página se note antes de cambiar de pantalla
+  const paginasPorVista = {
+    posiciones: Math.max(1, Math.ceil(equiposCount/6)),
+    tarjeta: Math.max(1, Math.ceil(equiposCount/9)),
+    oyes: Math.max(1, ...oyesGruposActuales.map(g => Math.ceil((g.ranking?.length||0)/6))),
+  };
+  const autoViewDurationMs = paginasPorVista[autoViewActual] * (PAGE_SHOW_MS[autoViewActual] + PAGE_EXIT_MS) + HOLD_EXTRA_MS;
+
+  // Modo automático (proyección): cicla Posiciones → Tarjeta → O'Yes, con fade+slide, esperando
+  // en cada una lo que tarde en mostrar todas sus páginas internas antes de pasar a la siguiente.
   useEffect(() => {
     if (vista !== "auto") return;
-    const id = setInterval(() => setAutoSlide(s => (s+1) % autoViews.length), 12000);
-    return () => clearInterval(id);
-  }, [vista, autoViews.length]);
+    const id = setTimeout(() => setAutoSlide(s => (s+1) % autoViews.length), autoViewDurationMs);
+    return () => clearTimeout(id);
+  }, [vista, autoSlide, autoViewDurationMs, autoViews.length]);
 
   if (loading) return <Spinner label="Conectando..." />;
   if (!torneo) return <Spinner label="Torneo no encontrado" />;
@@ -1074,7 +1090,6 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
   const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", height:"100vh", width:"100%", margin:"0 auto", display:"flex", flexDirection:"column", overflow:"hidden" };
   const hayOyes = torneo.oyes?.holes?.length>0;
-  const autoViewActual = autoViews[autoSlide % autoViews.length];
   const autoViewLabel = { posiciones:"Posiciones", tarjeta:"Tarjeta", oyes:"O'Yes" }[autoViewActual];
   const autoViewIcon = { posiciones:<Trophy size={13}/>, tarjeta:<ClipboardList size={13}/>, oyes:<Target size={13}/> }[autoViewActual];
 
