@@ -949,6 +949,41 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big })
     </>
   );
 }
+// Ajusta automáticamente el tamaño de su contenido para que quepa por completo en el alto
+// disponible, sin necesitar scroll — pensado para la pantalla de un club en modo proyección,
+// donde nadie está ahí para desplazar la pantalla. Mide el alto natural del contenido contra
+// el alto disponible y, si no cabe, lo reduce (transform: scale) compensando el ancho para que
+// siga ocupando el 100% del espacio horizontal. Se re-mide solo cuando el contenido o el
+// contenedor cambian de tamaño (ResizeObserver), así que funciona igual en cualquier pantalla.
+function AutoFitScale({ children }) {
+  const outerRef = useRef(null);
+  const innerRef = useRef(null);
+  const [scale, setScale] = useState(1);
+  useLayoutEffect(() => {
+    const outer = outerRef.current, inner = innerRef.current;
+    if (!outer || !inner) return;
+    const measure = () => {
+      const naturalHeight = inner.scrollHeight;
+      const availableHeight = outer.clientHeight;
+      if (naturalHeight <= 0 || availableHeight <= 0) return;
+      const s = Math.min(1, availableHeight / naturalHeight);
+      setScale(prev => (Math.abs(prev - s) > 0.004 ? s : prev));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(outer);
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={outerRef} style={{ height:"100%", overflow:"hidden" }}>
+      <div ref={innerRef} style={{ transform:`scale(${scale})`, transformOrigin:"top left", width:`${100/scale}%` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const [torneo, setTorneo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -979,7 +1014,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
 
   const campoNombre = CAMPOS[torneo.campo]?.nombre || torneo.campo;
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
-  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", minHeight:"100vh", width:"100%", margin:"0 auto" };
+  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", height:"100vh", width:"100%", margin:"0 auto", display:"flex", flexDirection:"column", overflow:"hidden" };
   const hayOyes = torneo.oyes?.holes?.length>0;
   const autoViewActual = autoViews[autoSlide % autoViews.length];
   const autoViewLabel = { posiciones:"Posiciones", tarjeta:"Tarjeta", oyes:"O'Yes" }[autoViewActual];
@@ -987,7 +1022,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
 
   return (
     <div style={tvMode ? tvStyle : appStyle}>
-      <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"8px 20px 6px":"20px 16px 14px", textAlign:"center", position:"relative" }}>
+      <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"8px 20px 6px":"20px 16px 14px", textAlign:"center", position:"relative", flexShrink:0 }}>
         <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginBottom:tvMode?4:0 }} className="no-print">
           {tvMode && (
             <select value={vista} onChange={e=>setVista(e.target.value)} style={{ padding:"4px 9px", border:`1px solid ${D.gold}`, borderRadius:14, background:D.goldDim, color:D.gold, fontSize:10, fontWeight:700 }}>
@@ -1032,22 +1067,43 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
         </div>
         <FranjaPatrocinadores torneo={torneo} big={tvMode} />
       </div>
-      <div style={tvMode ? { padding:"20px 24px", maxWidth:"98vw", margin:"0 auto", display:"grid", gap:16 } : { padding:"12px 12px 32px" }}>
-        {vista === "auto" ? (
-          <div key={autoSlide} className="h19-tab-panel">
-            {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} />}
-            {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
-            {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} />}
-          </div>
-        ) : vista === "oyes" ? (
-          <OyesLiveView torneo={torneo} big={tvMode} />
+      <div style={tvMode ? { padding:"12px 24px 6px", maxWidth:"98vw", width:"100%", margin:"0 auto", flex:"1 1 0", minHeight:0, overflow:"hidden" } : { padding:"12px 12px 32px" }}>
+        {tvMode ? (
+          <AutoFitScale>
+            {vista === "auto" ? (
+              <div key={autoSlide} className="h19-tab-panel">
+                {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} />}
+                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+                {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} />}
+              </div>
+            ) : vista === "oyes" ? (
+              <OyesLiveView torneo={torneo} big={tvMode} />
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+                {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
+                {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+              </div>
+            )}
+          </AutoFitScale>
         ) : (
           <>
-            {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
-            {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+            {vista === "auto" ? (
+              <div key={autoSlide} className="h19-tab-panel">
+                {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} />}
+                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+                {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} />}
+              </div>
+            ) : vista === "oyes" ? (
+              <OyesLiveView torneo={torneo} big={tvMode} />
+            ) : (
+              <>
+                {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
+                {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+              </>
+            )}
+            <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:8 }}>Vista de solo lectura · Actualización automática</div>
           </>
         )}
-        {!tvMode && <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:8 }}>Vista de solo lectura · Actualización automática</div>}
       </div>
     </div>
   );
