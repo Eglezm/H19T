@@ -628,7 +628,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
   const [page, setPage] = useState(0);
   useEffect(() => {
     if (!big || totalPages <= 1) { setPage(0); return; }
-    const id = setInterval(() => setPage(p => (p+1) % totalPages), 5000);
+    const id = setInterval(() => setPage(p => (p+1 < totalPages ? p+1 : p)), 5000);
     return () => clearInterval(id);
   }, [big, totalPages]);
   const startIdx = big ? page*PAGE_SIZE : 0;
@@ -698,6 +698,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalPages>1 && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}> · Equipos {startIdx+1}–{Math.min(startIdx+PAGE_SIZE, allRows.length)} de {allRows.length}</span>}</SLabel>
+      <div key={page} className={big?"h19-page-rise":undefined}>
       {rows.map((u, localPos) => {
         const pos = startIdx + localPos;
         const top3 = pos < 3;
@@ -764,6 +765,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
           </div>
         );
       })}
+      </div>
       {rows.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Aún no hay unidades</div>}
       {big && totalPages>1 && (
         <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
@@ -784,7 +786,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
   const [page, setPage] = useState(0);
   useEffect(() => {
     if (!big || totalPages <= 1) { setPage(0); return; }
-    const id = setInterval(() => setPage(p => (p+1) % totalPages), 8000);
+    const id = setInterval(() => setPage(p => (p+1 < totalPages ? p+1 : p)), 8000);
     return () => clearInterval(id);
   }, [big, totalPages]);
   const startIdx = big ? page*PAGE_SIZE : 0;
@@ -794,7 +796,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida{big && totalPages>1 ? ` · Equipos ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, allRows.length)} de ${allRows.length}` : ""}</span></SLabel>
-      <div style={{ overflowX:"auto" }}>
+      <div key={page} className={big?"h19-page-rise":undefined} style={{ overflowX:"auto" }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, minWidth:pares.length*(big?46:32)+(big?140:90) }}>
           <thead>
             <tr>
@@ -901,7 +903,7 @@ function OyesGroupCard({ g, premios, premiosNombres, big }) {
   const [page, setPage] = useState(0);
   useEffect(() => {
     if (!big || totalPages <= 1) { setPage(0); return; }
-    const id = setInterval(() => setPage(p => (p+1) % totalPages), 5000);
+    const id = setInterval(() => setPage(p => (p+1 < totalPages ? p+1 : p)), 5000);
     return () => clearInterval(id);
   }, [big, totalPages]);
   const startIdx = big ? page*PAGE_SIZE : 0;
@@ -909,7 +911,7 @@ function OyesGroupCard({ g, premios, premiosNombres, big }) {
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, g.ranking.length)} de ${g.ranking.length}` : ""}</span></SLabel>
-      <OyesRankList ranking={pageRanking} startIndex={startIdx} premios={premios} premiosNombres={premiosNombres} big={big} />
+      <OyesRankList key={page} ranking={pageRanking} startIndex={startIdx} premios={premios} premiosNombres={premiosNombres} big={big} rise={big} />
       {big && totalPages>1 && (
         <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
           {Array.from({length:totalPages}).map((_,i) => (
@@ -921,9 +923,9 @@ function OyesGroupCard({ g, premios, premiosNombres, big }) {
   );
 }
 
-function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big }) {
+function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, rise }) {
   return (
-    <>
+    <div className={rise?"h19-page-rise":undefined}>
       {ranking.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:big?20:14, fontSize:big?15:13 }}>Aún no hay anotaciones</div>}
       {ranking.map((e, localPos) => {
         const pos = startIndex + localPos;
@@ -980,7 +982,7 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big })
         </div>
         );
       })}
-    </>
+    </div>
   );
 }
 // Ajusta automáticamente el tamaño de su contenido para que quepa por completo en el alto
