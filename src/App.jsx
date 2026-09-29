@@ -870,11 +870,23 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(u => (
+            {rows.map((u, localPos) => {
+              const pos = startIdx + localPos;
+              const medalColor = pos===0 ? "#C9A227" : pos===1 ? "#9AA0A6" : pos===2 ? "#B08D57" : null;
+              return (
               <tr key={u.id} style={{ borderTop:`1px solid ${D.border}` }}>
                 <td style={{ padding:big?"10px 10px":"5px 6px", fontWeight:600, position:"sticky", left:0, background:D.surface, whiteSpace:"nowrap" }}>
-                  <div style={{ fontFamily:big?FONT_DISPLAY:"inherit", fontSize:big?22:"inherit" }}>{u.nombre}</div>
-                  <div style={{ fontSize:big?13:9, color:D.textDim, fontWeight:400 }}>{(u.jugadores||[]).map(j=>j.name.split(" ")[0]).join(", ")}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:big?10:6 }}>
+                    {medalColor ? (
+                      <div style={{ width:big?30:20, height:big?30:20, borderRadius:"50%", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:FONT_DISPLAY, fontWeight:900, fontSize:big?15:11, color:"#fff", background:medalColor }}>{pos+1}</div>
+                    ) : (
+                      <div style={{ width:big?30:20, textAlign:"center", flexShrink:0, fontFamily:FONT_DISPLAY, fontWeight:700, fontSize:big?15:11, color:D.textSub }}>{pos+1}</div>
+                    )}
+                    <div>
+                      <div style={{ fontFamily:big?FONT_DISPLAY:"inherit", fontSize:big?22:"inherit" }}>{u.nombre}</div>
+                      <div style={{ fontSize:big?13:9, color:D.textDim, fontWeight:400 }}>{(u.jugadores||[]).map(j=>j.name.split(" ")[0]).join(", ")}</div>
+                    </div>
+                  </div>
                 </td>
                 {pares.map((par, h) => {
                   const s = (u.scores||[])[h];
@@ -891,7 +903,8 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete }) {
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:700, color:D.textSub }}>{u.hcAplicado}</td>
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
