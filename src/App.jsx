@@ -621,14 +621,14 @@ function FranjaPatrocinadores({ torneo, big }) {
 // ─── TARJETA DE POSICIONES (reutilizable) ─────────
 function TablaPosiciones({ torneo, highlightId, big }) {
   const allRows = leaderboard(torneo);
-  // En pantalla completa (proyección) ciclamos de 9 en 9 equipos para que el texto se lea bien;
+  // En pantalla completa (proyección) ciclamos de 6 en 6 equipos, cambiando cada 5s, para que el texto se lea bien;
   // fuera de pantalla completa se muestra la lista completa (con scroll), como antes.
-  const PAGE_SIZE = 9;
+  const PAGE_SIZE = 6;
   const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
   const [page, setPage] = useState(0);
   useEffect(() => {
     if (!big || totalPages <= 1) { setPage(0); return; }
-    const id = setInterval(() => setPage(p => (p+1) % totalPages), 8000);
+    const id = setInterval(() => setPage(p => (p+1) % totalPages), 5000);
     return () => clearInterval(id);
   }, [big, totalPages]);
   const startIdx = big ? page*PAGE_SIZE : 0;
@@ -894,14 +894,14 @@ function OyesLiveView({ torneo, big }) {
 }
 
 // Tarjeta de un grupo de O'Yes (un hoyo, o la clasificación general) — en pantalla completa
-// cicla de 10 en 10 jugadores, ya que son los premiados los primeros 10 y así sucesivamente.
+// cicla de 6 en 6 jugadores, cambiando cada 5s.
 function OyesGroupCard({ g, premios, premiosNombres, big }) {
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 6;
   const totalPages = big ? Math.max(1, Math.ceil(g.ranking.length / PAGE_SIZE)) : 1;
   const [page, setPage] = useState(0);
   useEffect(() => {
     if (!big || totalPages <= 1) { setPage(0); return; }
-    const id = setInterval(() => setPage(p => (p+1) % totalPages), 8000);
+    const id = setInterval(() => setPage(p => (p+1) % totalPages), 5000);
     return () => clearInterval(id);
   }, [big, totalPages]);
   const startIdx = big ? page*PAGE_SIZE : 0;
