@@ -410,6 +410,43 @@ function hoyoActualDe(u, totalHoyos) {
   return null;
 }
 
+// Controla el ciclo automático de páginas de una lista en modo proyección: en vez de saltar
+// directo al siguiente grupo, primero marca fase "leaving" (para que el grupo actual se
+// desvanezca hacia arriba) y solo después de esa transición cambia de página (que entra con su
+// propia animación de aparición). Se detiene en la última página sin repetir desde la primera.
+function usePagedTransition(big, totalPages, showMs = 5000, exitMs = 420) {
+  const [page, setPage] = useState(0);
+  const [phase, setPhase] = useState("showing"); // "showing" | "leaving"
+  useEffect(() => {
+    setPage(0);
+    setPhase("showing");
+    if (!big || totalPages <= 1) return;
+    let cancelled = false;
+    let currentPage = 0;
+    let t1, t2;
+    const tick = () => {
+      t1 = setTimeout(() => {
+        if (cancelled) return;
+        setPhase("leaving");
+        t2 = setTimeout(() => {
+          if (cancelled) return;
+          if (currentPage + 1 < totalPages) {
+            currentPage += 1;
+            setPage(currentPage);
+            setPhase("showing");
+            tick();
+          } else {
+            setPhase("showing"); // última página: se queda visible, sin volver a la primera
+          }
+        }, exitMs);
+      }, showMs);
+    };
+    tick();
+    return () => { cancelled = true; clearTimeout(t1); clearTimeout(t2); };
+  }, [big, totalPages]);
+  return { page, phase };
+}
+
 // ─── UI PRIMITIVAS (mismo lenguaje visual que H19 Golf) ──
 // Número animado: hace count-up desde el valor anterior hasta el nuevo cada vez que cambia
 function CountUp({ value, duration = 650, decimals = 0, style = {} }) {
@@ -625,12 +662,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
   // fuera de pantalla completa se muestra la lista completa (con scroll), como antes.
   const PAGE_SIZE = 6;
   const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
-  const [page, setPage] = useState(0);
-  useEffect(() => {
-    if (!big || totalPages <= 1) { setPage(0); return; }
-    const id = setInterval(() => setPage(p => (p+1 < totalPages ? p+1 : p)), 5000);
-    return () => clearInterval(id);
-  }, [big, totalPages]);
+  const { page, phase } = usePagedTransition(big, totalPages, 5000);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
@@ -698,7 +730,7 @@ function TablaPosiciones({ torneo, highlightId, big }) {
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalPages>1 && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}> · Equipos {startIdx+1}–{Math.min(startIdx+PAGE_SIZE, allRows.length)} de {allRows.length}</span>}</SLabel>
-      <div key={page} className={big?"h19-page-rise":undefined}>
+      <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined}>
       {rows.map((u, localPos) => {
         const pos = startIdx + localPos;
         const top3 = pos < 3;
@@ -783,12 +815,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
   // En pantalla completa ciclamos de 9 en 9 equipos (misma lógica que TablaPosiciones).
   const PAGE_SIZE = 9;
   const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
-  const [page, setPage] = useState(0);
-  useEffect(() => {
-    if (!big || totalPages <= 1) { setPage(0); return; }
-    const id = setInterval(() => setPage(p => (p+1 < totalPages ? p+1 : p)), 8000);
-    return () => clearInterval(id);
-  }, [big, totalPages]);
+  const { page, phase } = usePagedTransition(big, totalPages, 8000);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const pares = torneo.pares;
@@ -796,7 +823,7 @@ function TarjetaHoyoPorHoyo({ torneo, big }) {
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida{big && totalPages>1 ? ` · Equipos ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, allRows.length)} de ${allRows.length}` : ""}</span></SLabel>
-      <div key={page} className={big?"h19-page-rise":undefined} style={{ overflowX:"auto" }}>
+      <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined} style={{ overflowX:"auto" }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, minWidth:pares.length*(big?46:32)+(big?140:90) }}>
           <thead>
             <tr>
@@ -900,18 +927,13 @@ function OyesLiveView({ torneo, big }) {
 function OyesGroupCard({ g, premios, premiosNombres, big }) {
   const PAGE_SIZE = 6;
   const totalPages = big ? Math.max(1, Math.ceil(g.ranking.length / PAGE_SIZE)) : 1;
-  const [page, setPage] = useState(0);
-  useEffect(() => {
-    if (!big || totalPages <= 1) { setPage(0); return; }
-    const id = setInterval(() => setPage(p => (p+1 < totalPages ? p+1 : p)), 5000);
-    return () => clearInterval(id);
-  }, [big, totalPages]);
+  const { page, phase } = usePagedTransition(big, totalPages, 5000);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const pageRanking = big ? g.ranking.slice(startIdx, startIdx+PAGE_SIZE) : g.ranking;
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, g.ranking.length)} de ${g.ranking.length}` : ""}</span></SLabel>
-      <OyesRankList key={page} ranking={pageRanking} startIndex={startIdx} premios={premios} premiosNombres={premiosNombres} big={big} rise={big} />
+      <OyesRankList key={page} ranking={pageRanking} startIndex={startIdx} premios={premios} premiosNombres={premiosNombres} big={big} rise={big ? (phase==="leaving"?"leave":"rise") : undefined} />
       {big && totalPages>1 && (
         <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
           {Array.from({length:totalPages}).map((_,i) => (
@@ -925,7 +947,7 @@ function OyesGroupCard({ g, premios, premiosNombres, big }) {
 
 function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, rise }) {
   return (
-    <div className={rise?"h19-page-rise":undefined}>
+    <div className={rise==="leave" ? "h19-page-leave" : rise==="rise" ? "h19-page-rise" : undefined}>
       {ranking.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:big?20:14, fontSize:big?15:13 }}>Aún no hay anotaciones</div>}
       {ranking.map((e, localPos) => {
         const pos = startIndex + localPos;
