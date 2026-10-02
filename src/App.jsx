@@ -2535,15 +2535,19 @@ function AdminTorneoApp({ onExit }) {
 
   const compartirCodigoIndividual = (u) => {
     const url = `${window.location.origin}${window.location.pathname}?equipo=${u.codigo}`;
+    const marcaA = torneo.unidades?.[u.marcaA];
     const lines = [
       `⛳ *H19T — ${torneo.nombre}*`,
       `Hola equipo *${u.nombre}* 👋`,
       `Integrantes: ${u.jugadores.map(j=>j.name).join(", ")}`,
       `Salen del hoyo *${u.hoyoSalida+1}*`,
       ``,
-      `Su código de acceso es: *${u.codigo}*`,
-      `Entren directo aquí: ${url}`,
-    ].join("\n");
+      marcaA ? `A ustedes les toca anotar el score de: *${marcaA.nombre}*` : "",
+      marcaA ? `Desde la app, entren a "Registro de Score", elijan a *${marcaA.nombre}* y escriban ese mismo nombre para confirmar.` : "",
+      ``,
+      `También pueden entrar directo con su código: *${u.codigo}*`,
+      url,
+    ].filter(l => l !== "").join("\n");
     window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
@@ -2920,13 +2924,23 @@ function AdminTorneoApp({ onExit }) {
                   ))}
                   <span style={{ color:D.textDim, display:"inline-flex", alignItems:"center", gap:3 }}><ChevronRight size={13}/> ({us[0].nombre})</span>
                 </div>
-                <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:6 }}>
-                  {us.map(u => (
-                    <div key={u.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <div style={{ fontSize:11, color:D.textSub, flex:1 }}>{u.nombre}: código <b style={{ color:D.gold }}>{u.codigo}</b></div>
-                      <button onClick={() => compartirCodigoIndividual(u)} style={{ padding:"4px 10px", border:"none", borderRadius:8, background:"#25D366", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}><MessageCircle size={13}/> Enviar</button>
-                    </div>
-                  ))}
+                <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:8 }}>
+                  {us.map(u => {
+                    const marcaA = torneo.unidades?.[u.marcaA];
+                    return (
+                      <div key={u.id} style={{ padding:"6px 0", borderBottom:`1px solid ${D.border}` }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:12, fontWeight:700 }}>{u.nombre}</div>
+                            {u.jugadores && u.jugadores.length>0 && <div style={{ fontSize:10, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>}
+                          </div>
+                          <button onClick={() => compartirCodigoIndividual(u)} style={{ padding:"4px 10px", border:"none", borderRadius:8, background:"#25D366", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", flexShrink:0 }}><MessageCircle size={13}/> Enviar</button>
+                        </div>
+                        <div style={{ fontSize:11, color:D.textSub, marginTop:4 }}>Código (link): <b style={{ color:D.gold }}>{u.codigo}</b></div>
+                        {marcaA && <div style={{ fontSize:11, color:D.textSub }}>Código App (Registro de Score): anota a <b style={{ color:D.gold }}>{marcaA.nombre}</b></div>}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div style={{ marginTop:8 }}>
                   {confirmDisolver===gid ? (
@@ -3320,18 +3334,25 @@ function AdminTorneoApp({ onExit }) {
           <Card className="print-card">
             <SLabel>Equipos, jugadores y códigos — {torneo.nombre}</SLabel>
             {unidadesList.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Aún no hay unidades</div>}
-            {unidadesList.map((u, idx) => (
+            {unidadesList.map((u, idx) => {
+              const marcaA = torneo.unidades?.[u.marcaA];
+              return (
               <div key={u.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:idx<unidadesList.length-1?`1px solid ${D.border}`:"none" }}>
                 <div style={{ width:56, fontSize:11, color:D.textSub, fontWeight:700 }}>{u.hoyoSalida!=null ? `Hoyo ${u.hoyoSalida+1}` : "Sin hoyo"}</div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:700 }}>{u.nombre}</div>
                   <div style={{ fontSize:11, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>
+                  {marcaA && <div style={{ fontSize:10, color:D.textSub, marginTop:2 }}>Código App: anota a <b style={{ color:D.gold }}>{marcaA.nombre}</b></div>}
                 </div>
-                <div style={{ fontSize:16, fontWeight:900, color:D.gold, letterSpacing:1 }}>{u.codigo || "— sin código —"}</div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:16, fontWeight:900, color:D.gold, letterSpacing:1 }}>{u.codigo || "— sin código —"}</div>
+                  <div style={{ fontSize:9, color:D.textDim }}>código (link)</div>
+                </div>
               </div>
-            ))}
+              );
+            })}
           </Card>
-          <div style={{ fontSize:11, color:D.textDim, textAlign:"center" }} className="no-print">Cada equipo debe usar únicamente su propio código para evitar que anoten scores que no les corresponden.</div>
+          <div style={{ fontSize:11, color:D.textDim, textAlign:"center" }} className="no-print">Cada equipo debe usar únicamente su propio código, o entrar a "Registro de Score" desde la app y escribir el nombre correcto, para evitar que anoten scores que no les corresponden.</div>
         </div>
       </div>
     );
