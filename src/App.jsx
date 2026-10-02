@@ -334,6 +334,7 @@ function premiosEspecialesOyes(torneo) {
     resultado.hoyo118 = {
       nombre: pe.hoyo118.nombre || "",
       valor: pe.hoyo118.valor || "",
+      imagen: pe.hoyo118.imagen || null,
       ganador: ganadorPE1,
     };
   }
@@ -343,6 +344,7 @@ function premiosEspecialesOyes(torneo) {
     resultado.participantes = {
       nombre: pe.participantes.nombre || "",
       valor: pe.participantes.valor || "",
+      imagen: pe.participantes.imagen || null,
       ganador: primerHoleInOne(candidatosPE2, e => holesParticipantes.includes(e.holeFisico)),
     };
   }
@@ -1004,23 +1006,31 @@ function PremiosEspecialesPanel({ especiales, big }) {
     <Card tv={big} style={big ? { padding:24 } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><Sparkles size={14}/> Premios Especiales</SLabel>
       <div style={{ display:"flex", flexDirection:"column", gap:big?16:10 }}>
-        {items.map(it => (
-          <div key={it.key} style={{ padding:big?"16px 18px":"10px 12px", borderRadius:12, background:D.achievementDim, border:`1px solid ${D.achievement}` }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:big?15:12, fontWeight:700, color:D.achievement, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:it.ganador?8:0 }}>
-              <Trophy size={big?18:13}/> {it.titulo}{it.nombre ? ` — ${it.nombre}` : ""}
-            </div>
-            {it.ganador ? (
-              <div style={{ display:"flex", alignItems:"baseline", gap:big?14:8, flexWrap:"wrap" }}>
-                <div style={{ fontFamily:FONT_DISPLAY, fontSize:big?26:16, fontWeight:700, color:D.text }}>{it.ganador.jugadorNombre}</div>
-                <div style={{ fontSize:big?14:11, color:D.textSub }}>{it.ganador.unidadNombre} · Hoyo {it.ganador.holeJugado ?? it.ganador.holeFisico} · {fmtHora(it.ganador.ts)}</div>
-                {it.valor && <div style={{ fontSize:big?13:10, color:D.achievement, fontWeight:600 }}>{it.valor}</div>}
-                <div style={{ fontSize:big?14:10, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:"0.04em", display:"flex", alignItems:"center", gap:4 }}><Sparkles size={big?16:11}/> Hole in one</div>
-              </div>
-            ) : (
-              <div style={{ fontSize:big?14:12, color:D.textSub }}>Aún sin ganador{it.valor ? ` · ${it.valor}` : ""}</div>
+        {items.map(it => {
+          const imgUrl = it.imagen ? getLogoUrl(it.imagen) : "";
+          return (
+          <div key={it.key} style={{ display:"flex", alignItems:"flex-start", gap:big?16:10, padding:big?"16px 18px":"10px 12px", borderRadius:12, background:D.achievementDim, border:`1px solid ${D.achievement}` }}>
+            {imgUrl && (
+              <img src={imgUrl} alt="" style={{ width:big?84:52, height:big?84:52, objectFit:"cover", borderRadius:10, border:`1px solid ${D.achievement}`, background:"#fff", flexShrink:0 }} />
             )}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:big?15:12, fontWeight:700, color:D.achievement, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:it.ganador?8:0 }}>
+                <Trophy size={big?18:13}/> {it.titulo}{it.nombre ? ` — ${it.nombre}` : ""}
+              </div>
+              {it.ganador ? (
+                <div style={{ display:"flex", alignItems:"baseline", gap:big?14:8, flexWrap:"wrap" }}>
+                  <div style={{ fontFamily:FONT_DISPLAY, fontSize:big?26:16, fontWeight:700, color:D.text }}>{it.ganador.jugadorNombre}</div>
+                  <div style={{ fontSize:big?14:11, color:D.textSub }}>{it.ganador.unidadNombre} · Hoyo {it.ganador.holeJugado ?? it.ganador.holeFisico} · {fmtHora(it.ganador.ts)}</div>
+                  {it.valor && <div style={{ fontSize:big?13:10, color:D.achievement, fontWeight:600 }}>{it.valor}</div>}
+                  <div style={{ fontSize:big?14:10, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:"0.04em", display:"flex", alignItems:"center", gap:4 }}><Sparkles size={big?16:11}/> Hole in one</div>
+                </div>
+              ) : (
+                <div style={{ fontSize:big?14:12, color:D.textSub }}>Aún sin ganador{it.valor ? ` · ${it.valor}` : ""}</div>
+              )}
+            </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );
@@ -1502,6 +1512,7 @@ function OyesRecordView({ torneoId, onExit }) {
   const [jugadorId, setJugadorId] = useState("");
   const [hole, setHole] = useState("");
   const [cm, setCm] = useState("");
+  const [holeInOne, setHoleInOne] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [confirmDeleteEntry, setConfirmDeleteEntry] = useState(null);
   const [okMsg, setOkMsg] = useState("");
@@ -1550,15 +1561,16 @@ function OyesRecordView({ torneoId, onExit }) {
   });
 
   const anotar = () => {
-    if (!jugadorId || !hole || cm==="" || isNaN(parseFloat(cm)) || parseFloat(cm)<0) return;
+    const cmFinal = holeInOne ? 0 : parseFloat(cm);
+    if (!jugadorId || !hole || isNaN(cmFinal) || cmFinal<0 || (!holeInOne && cm==="")) return;
     const jug = todosLosJugadores(torneo).find(j=>j.id===parseInt(jugadorId) || j.id===jugadorId);
     if (!jug) return;
     const id = `E${Date.now()}`;
     set(ref(db, `torneos/${torneoId}/oyesEntradas/${id}`), {
       jugadorId: jug.id, jugadorNombre: jug.name, unidadNombre: jug.unidadNombre,
       holeFisico: hoyoFisicoDesdeJugado(torneo, parseInt(hole)), holeJugado: parseInt(hole),
-      cm: Math.round(parseFloat(cm)*100)/100, ts: Date.now(),
-    }).then(() => { setOkMsg(`${jug.name} — ${cm}cm en hoyo ${hole}`); setTimeout(()=>setOkMsg(""),2500); setCm(""); });
+      cm: Math.round(cmFinal*100)/100, ts: Date.now(),
+    }).then(() => { setOkMsg(`${jug.name} — ${holeInOne ? "Hole in One" : cm+"cm"} en hoyo ${hole}`); setTimeout(()=>setOkMsg(""),2500); setCm(""); setHoleInOne(false); });
   };
 
   return (
@@ -1592,9 +1604,17 @@ function OyesRecordView({ torneoId, onExit }) {
               <button key={opt.jugado} onClick={() => setHole(String(opt.jugado))} style={{ padding:"8px 14px", border:`1px solid ${String(hole)===String(opt.jugado)?D.gold:D.border}`, borderRadius:10, background:String(hole)===String(opt.jugado)?D.goldDim:"transparent", color:String(hole)===String(opt.jugado)?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>{opt.label}</button>
             ))}
           </div>
-          <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Distancia (centímetros)</div>
-          <input type="number" min="0" step="0.01" value={cm} onChange={e=>setCm(e.target.value)} placeholder="Ej. 245 o 245.5 (0 = hole in one)" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
-          <Btn onClick={anotar} disabled={!jugadorId||!hole||cm===""}><Target size={16}/> Guardar anotación</Btn>
+          <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Distancia</div>
+          <button onClick={() => { setHoleInOne(v => !v); setCm(""); }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"10px 12px", border:`1px solid ${holeInOne?D.gold:D.border}`, borderRadius:10, background:holeInOne?D.goldDim:"transparent", color:holeInOne?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:10, boxSizing:"border-box" }}>
+            <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${holeInOne?D.gold:D.border}`,background:holeInOne?D.gold:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{holeInOne && <Check size={12} color="#fff"/>}</div>
+            <Sparkles size={14}/> Hole in One
+          </button>
+          {holeInOne ? (
+            <div style={{ textAlign:"center", padding:"10px 12px", background:D.goldDim, border:`1px solid ${D.gold}`, borderRadius:10, color:D.gold, fontSize:13, fontWeight:700, marginBottom:14 }}>Se guardará como 0.00 cm (Hole in One)</div>
+          ) : (
+            <input type="number" min="0" step="0.01" value={cm} onChange={e=>setCm(e.target.value)} placeholder="Distancia en centímetros, ej. 245 o 245.5" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
+          )}
+          <Btn onClick={anotar} disabled={!jugadorId||!hole||(!holeInOne && cm==="")}><Target size={16}/> Guardar anotación</Btn>
         </Card>
 
         <Card>
@@ -1762,6 +1782,12 @@ function AdminTorneoApp({ onExit }) {
   const [pePartNombre, setPePartNombre] = useState("");
   const [pePartValor, setPePartValor] = useState("");
   const [oyesSyncedFor, setOyesSyncedFor] = useState(null);
+  const [adminOyesBusqueda, setAdminOyesBusqueda] = useState("");
+  const [adminOyesJugadorId, setAdminOyesJugadorId] = useState("");
+  const [adminOyesHole, setAdminOyesHole] = useState("");
+  const [adminOyesCm, setAdminOyesCm] = useState("");
+  const [adminOyesHoleInOne, setAdminOyesHoleInOne] = useState(false);
+  const [adminOyesOkMsg, setAdminOyesOkMsg] = useState("");
   const [logoCampoObj, setLogoCampoObj] = useState(null);
   const [logoTorneoObj, setLogoTorneoObj] = useState(null);
   const [patrocinadoresList, setPatrocinadoresList] = useState([]);
@@ -1773,6 +1799,8 @@ function AdminTorneoApp({ onExit }) {
   const inputCampoRef = useRef(null);
   const inputTorneoRef = useRef(null);
   const sponsorFileInputRef = useRef(null);
+  const inputPeHoyo118Ref = useRef(null);
+  const inputPePartRef = useRef(null);
   const [appLogoObj, setAppLogoObj] = useState(null);
   const inputAppLogoRef = useRef(null);
 
@@ -2035,8 +2063,8 @@ function AdminTorneoApp({ onExit }) {
     const premiosFinal = Math.max(1, Math.min(10, parseInt(oyesPremios, 10) || 1));
     const premiosNombresFinal = Array.from({ length: premiosFinal }, (_, i) => (oyesPremiosNombres[i] || "").trim());
     const premiosEspecialesFinal = {
-      hoyo118: { activo: !!peHoyo118Activo, nombre: peHoyo118Nombre.trim(), valor: peHoyo118Valor.trim() },
-      participantes: { activo: !!pePartActivo, nombre: pePartNombre.trim(), valor: pePartValor.trim() },
+      hoyo118: { activo: !!peHoyo118Activo, nombre: peHoyo118Nombre.trim(), valor: peHoyo118Valor.trim(), imagen: torneo?.oyes?.premiosEspeciales?.hoyo118?.imagen || null },
+      participantes: { activo: !!pePartActivo, nombre: pePartNombre.trim(), valor: pePartValor.trim(), imagen: torneo?.oyes?.premiosEspeciales?.participantes?.imagen || null },
     };
     set(ref(db, `torneos/${torneoId}/oyes`), {
       modo: oyesModo, holes: oyesHoles, premios: premiosFinal, premiosNombres: premiosNombresFinal,
@@ -2049,6 +2077,24 @@ function AdminTorneoApp({ onExit }) {
     next[i] = valor;
     return next;
   });
+  // El admin puede anotar O'Yes de cualquier jugador directamente, igual que ya puede capturar
+  // el score de cualquier equipo — sin necesitar la contraseña de anotación.
+  const anotarOyesAdmin = () => {
+    const cmFinal = adminOyesHoleInOne ? 0 : parseFloat(adminOyesCm);
+    if (!adminOyesJugadorId || !adminOyesHole || isNaN(cmFinal) || cmFinal<0 || (!adminOyesHoleInOne && adminOyesCm==="")) return;
+    const jug = todosLosJugadores(torneo).find(j => j.id===parseInt(adminOyesJugadorId) || j.id===adminOyesJugadorId);
+    if (!jug) return;
+    const id = `E${Date.now()}`;
+    set(ref(db, `torneos/${torneoId}/oyesEntradas/${id}`), {
+      jugadorId: jug.id, jugadorNombre: jug.name, unidadNombre: jug.unidadNombre,
+      holeFisico: hoyoFisicoDesdeJugado(torneo, parseInt(adminOyesHole)), holeJugado: parseInt(adminOyesHole),
+      cm: Math.round(cmFinal*100)/100, ts: Date.now(),
+    }).then(() => {
+      setAdminOyesOkMsg(`${jug.name} — ${adminOyesHoleInOne ? "Hole in One" : adminOyesCm+"cm"} en hoyo ${adminOyesHole}`);
+      setTimeout(() => setAdminOyesOkMsg(""), 2500);
+      setAdminOyesCm(""); setAdminOyesHoleInOne(false);
+    });
+  };
   const compartirOyesWhatsapp = () => {
     const urlAnotar = `${window.location.origin}${window.location.pathname}?oyes=${torneoId}`;
     const urlVer = `${window.location.origin}${window.location.pathname}?torneo=${torneoId}&vista=oyes`;
@@ -2116,6 +2162,17 @@ function AdminTorneoApp({ onExit }) {
       setLogoTorneoObj(data);
       if (oldPath && oldPath !== newPath) deleteObject(storageRef(storage, oldPath)).catch(()=>{});
     });
+  };
+  // Imagen ilustrativa del premio especial (opcional) — se guarda junto a su configuración,
+  // sin tocar nada del resto de O'Yes.
+  const subirImagenPremioEspecial = (slot, file) => {
+    subirImagen(file, `pe_${slot}`, "", (data) => {
+      set(ref(db, `torneos/${torneoId}/oyes/premiosEspeciales/${slot}/imagen`), data);
+    });
+  };
+  const eliminarImagenPremioEspecial = (slot) => {
+    remove(ref(db, `torneos/${torneoId}/oyes/premiosEspeciales/${slot}/imagen`));
+    setConfirmEliminarLogo(null);
   };
   const eliminarLogoCampo = () => {
     const path = getLogoPath(logoCampoObj);
@@ -2656,6 +2713,8 @@ function AdminTorneoApp({ onExit }) {
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
           <TabBar tabs={adminTabs} active="oyes" onChange={setScreen} />
+          <input ref={inputPeHoyo118Ref} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display:"none" }} onChange={e => { const f=e.target.files[0]; if (f) subirImagenPremioEspecial("hoyo118", f); e.target.value=""; }} />
+          <input ref={inputPePartRef} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display:"none" }} onChange={e => { const f=e.target.files[0]; if (f) subirImagenPremioEspecial("participantes", f); e.target.value=""; }} />
 
           <Card>
             <SLabel>Modalidad de premiación</SLabel>
@@ -2741,6 +2800,22 @@ function AdminTorneoApp({ onExit }) {
                 <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                   <input value={peHoyo118Nombre} onChange={e=>setPeHoyo118Nombre(e.target.value)} placeholder="Nombre del premio (opcional)" style={{ padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
                   <input value={peHoyo118Valor} onChange={e=>setPeHoyo118Valor(e.target.value)} placeholder="Valor o descripción del premio (opcional)" style={{ padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
+                  {(() => {
+                    const st = uploadState.pe_hoyo118 || {};
+                    const img = torneo.oyes?.premiosEspeciales?.hoyo118?.imagen || null;
+                    return (
+                      <div>
+                        <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Imagen del premio (opcional)</div>
+                        {img && !st.uploading && <img src={getLogoUrl(img)} alt="" style={{ height:70, maxWidth:160, objectFit:"contain", borderRadius:8, marginBottom:8, display:"block" }} />}
+                        {st.uploading && <div style={{ fontSize:11, color:D.textSub, marginBottom:8 }}>Subiendo…</div>}
+                        {st.error && <div style={{ fontSize:11, color:D.danger, marginBottom:8 }}>{st.error}</div>}
+                        <div style={{ display:"flex", gap:8 }}>
+                          <button onClick={() => inputPeHoyo118Ref.current.click()} disabled={st.uploading} style={{ flex:1, padding:8, border:`1px solid ${D.gold}`, borderRadius:8, background:D.goldDim, color:D.gold, fontSize:11, fontWeight:700, cursor:st.uploading?"default":"pointer" }}>{img ? "Reemplazar imagen" : "Agregar imagen"}</button>
+                          {img && !st.uploading && <button onClick={() => eliminarImagenPremioEspecial("hoyo118")} style={{ padding:"8px 10px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, cursor:"pointer" }}><Trash2 size={13}/></button>}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -2755,6 +2830,22 @@ function AdminTorneoApp({ onExit }) {
                   <div style={{ fontSize:11, color:D.textSub }}>Usa los mismos hoyos participantes seleccionados arriba{oyesHoles.length>0 ? ` (Hoyo ${oyesHoles.join(", ")})` : ""}.</div>
                   <input value={pePartNombre} onChange={e=>setPePartNombre(e.target.value)} placeholder="Nombre del premio (opcional)" style={{ padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
                   <input value={pePartValor} onChange={e=>setPePartValor(e.target.value)} placeholder="Valor o descripción del premio (opcional)" style={{ padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
+                  {(() => {
+                    const st = uploadState.pe_participantes || {};
+                    const img = torneo.oyes?.premiosEspeciales?.participantes?.imagen || null;
+                    return (
+                      <div>
+                        <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Imagen del premio (opcional)</div>
+                        {img && !st.uploading && <img src={getLogoUrl(img)} alt="" style={{ height:70, maxWidth:160, objectFit:"contain", borderRadius:8, marginBottom:8, display:"block" }} />}
+                        {st.uploading && <div style={{ fontSize:11, color:D.textSub, marginBottom:8 }}>Subiendo…</div>}
+                        {st.error && <div style={{ fontSize:11, color:D.danger, marginBottom:8 }}>{st.error}</div>}
+                        <div style={{ display:"flex", gap:8 }}>
+                          <button onClick={() => inputPePartRef.current.click()} disabled={st.uploading} style={{ flex:1, padding:8, border:`1px solid ${D.gold}`, borderRadius:8, background:D.goldDim, color:D.gold, fontSize:11, fontWeight:700, cursor:st.uploading?"default":"pointer" }}>{img ? "Reemplazar imagen" : "Agregar imagen"}</button>
+                          {img && !st.uploading && <button onClick={() => eliminarImagenPremioEspecial("participantes")} style={{ padding:"8px 10px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, cursor:"pointer" }}><Trash2 size={13}/></button>}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -2781,6 +2872,41 @@ function AdminTorneoApp({ onExit }) {
                 <SLabel><Tv size={14}/> Ver clasificación en vivo</SLabel>
                 <div style={{ fontSize:12, color:D.textSub, marginBottom:8 }}>Este link es público, sin contraseña — ideal para proyectar.</div>
                 <div style={{ fontSize:11, color:D.gold, wordBreak:"break-all" }}>{window.location.origin}{window.location.pathname}?torneo={torneoId}&vista=oyes</div>
+              </Card>
+
+              <Card>
+                <SLabel><Target size={14}/> Anotar O'Yes (como admin)</SLabel>
+                <div style={{ fontSize:12, color:D.textSub, marginBottom:10 }}>Como admin puedes anotar el O'Yes de cualquier jugador directamente, sin necesitar la contraseña de anotación — útil para capturarlo tú mismo en el momento.</div>
+                {adminOyesOkMsg && <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px 12px", background:D.greenBg, border:`1px solid ${D.success}`, borderRadius:10, color:D.success, fontSize:12, textAlign:"center", fontWeight:600, marginBottom:10 }}><Check size={14}/>{adminOyesOkMsg}</div>}
+                <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Jugador</div>
+                <input value={adminOyesBusqueda} onChange={e=>setAdminOyesBusqueda(e.target.value)} placeholder="Buscar jugador..." style={{ width:"100%", padding:"9px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box", marginBottom:8 }} />
+                <div style={{ maxHeight:160, overflowY:"auto", border:`1px solid ${D.border}`, borderRadius:10, marginBottom:12 }}>
+                  {todosLosJugadores(torneo).filter(j => j.name.toLowerCase().includes(adminOyesBusqueda.toLowerCase())).map(j => (
+                    <div key={j.id} onClick={() => setAdminOyesJugadorId(String(j.id))} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:String(adminOyesJugadorId)===String(j.id)?D.goldDim:"transparent", cursor:"pointer", borderBottom:`1px solid ${D.border}` }}>
+                      <Avatar name={j.name} id={j.id} size={24} />
+                      <div style={{ flex:1, fontSize:13, fontWeight:600 }}>{j.name}</div>
+                      <div style={{ fontSize:10, color:D.textSub }}>{j.unidadNombre}</div>
+                    </div>
+                  ))}
+                  {todosLosJugadores(torneo).filter(j => j.name.toLowerCase().includes(adminOyesBusqueda.toLowerCase())).length===0 && <div style={{ padding:12, textAlign:"center", color:D.textSub, fontSize:12 }}>Sin resultados</div>}
+                </div>
+                <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Hoyo</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:12 }}>
+                  {opcionesHoyoOyes(torneo).map(opt => (
+                    <button key={opt.jugado} onClick={() => setAdminOyesHole(String(opt.jugado))} style={{ padding:"8px 14px", border:`1px solid ${String(adminOyesHole)===String(opt.jugado)?D.gold:D.border}`, borderRadius:10, background:String(adminOyesHole)===String(opt.jugado)?D.goldDim:"transparent", color:String(adminOyesHole)===String(opt.jugado)?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer" }}>{opt.label}</button>
+                  ))}
+                </div>
+                <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Distancia</div>
+                <button onClick={() => { setAdminOyesHoleInOne(v => !v); setAdminOyesCm(""); }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"10px 12px", border:`1px solid ${adminOyesHoleInOne?D.gold:D.border}`, borderRadius:10, background:adminOyesHoleInOne?D.goldDim:"transparent", color:adminOyesHoleInOne?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:10, boxSizing:"border-box" }}>
+                  <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${adminOyesHoleInOne?D.gold:D.border}`,background:adminOyesHoleInOne?D.gold:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{adminOyesHoleInOne && <Check size={12} color="#fff"/>}</div>
+                  <Sparkles size={14}/> Hole in One
+                </button>
+                {adminOyesHoleInOne ? (
+                  <div style={{ textAlign:"center", padding:"10px 12px", background:D.goldDim, border:`1px solid ${D.gold}`, borderRadius:10, color:D.gold, fontSize:13, fontWeight:700, marginBottom:14 }}>Se guardará como 0.00 cm (Hole in One)</div>
+                ) : (
+                  <input type="number" min="0" step="0.01" value={adminOyesCm} onChange={e=>setAdminOyesCm(e.target.value)} placeholder="Distancia en centímetros, ej. 245 o 245.5" style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:18, fontWeight:700, textAlign:"center", boxSizing:"border-box", marginBottom:14 }} />
+                )}
+                <Btn onClick={anotarOyesAdmin} disabled={!adminOyesJugadorId||!adminOyesHole||(!adminOyesHoleInOne && adminOyesCm==="")}><Target size={16}/> Guardar anotación</Btn>
               </Card>
 
               <OyesLiveView torneo={torneo} />
