@@ -2074,6 +2074,7 @@ function AdminTorneoApp({ onExit }) {
   // toque no se reflejaba. Clave: `${unidadId}:${holeIdx}`.
   const [pendingScoresAdmin, setPendingScoresAdmin] = useState({});
   const [selUnidades, setSelUnidades] = useState([]); // orden importa (cadena)
+  const [grupoMax, setGrupoMax] = useState(4); // límite de unidades por grupo — el admin lo decide (en individual pueden salir más de 4 de un hoyo)
 
   const [codigosUsados, setCodigosUsados] = useState(new Set());
   const [historial, setHistorial] = useState([]);
@@ -2267,7 +2268,7 @@ function AdminTorneoApp({ onExit }) {
   };
 
   const toggleUnidadGrupo = (uid) => {
-    setSelUnidades(prev => prev.includes(uid) ? prev.filter(x=>x!==uid) : (prev.length>=4 ? prev : [...prev, uid]));
+    setSelUnidades(prev => prev.includes(uid) ? prev.filter(x=>x!==uid) : (prev.length>=grupoMax ? prev : [...prev, uid]));
   };
 
   const crearGrupo = () => {
@@ -2882,7 +2883,14 @@ function AdminTorneoApp({ onExit }) {
           {sinGrupo.length>0 && (
             <Card>
               <SLabel>Armar grupo de salida</SLabel>
-              <div style={{ fontSize:12, color:D.textSub, marginBottom:10 }}>Selecciona de 2 a 4 unidades (el orden en que las toques define la cadena de marcaje: la 1ª anota a la 2ª, la 2ª a la 3ª... y la última anota a la 1ª).</div>
+              <div style={{ fontSize:12, color:D.textSub, marginBottom:10 }}>{`Selecciona de 2 a ${grupoMax} unidades (el orden en que las toques define la cadena de marcaje: la 1ª anota a la 2ª, la 2ª a la 3ª... y la última anota a la 1ª).`}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                <span style={{ fontSize:12, color:D.textSub }}>Máximo de unidades por grupo</span>
+                <button onClick={() => setGrupoMax(m => Math.max(2, m-1))} style={{ width:26, height:26, borderRadius:"50%", border:`1px solid ${D.border}`, background:D.surface, color:D.text, fontWeight:900, cursor:"pointer" }}>−</button>
+                <span style={{ minWidth:20, textAlign:"center", fontWeight:700, color:D.gold }}>{grupoMax}</span>
+                <button onClick={() => setGrupoMax(m => Math.min(16, m+1))} style={{ width:26, height:26, borderRadius:"50%", border:`1px solid ${D.border}`, background:D.surface, color:D.text, fontWeight:900, cursor:"pointer" }}>+</button>
+                <span style={{ fontSize:11, color:D.textDim }}>(en modalidad individual pueden salir más de 4 de un mismo hoyo)</span>
+              </div>
               <div style={{ marginBottom:10 }}>
                 <span style={{ fontSize:12, color:D.textSub, marginRight:8 }}>Hoyo de salida</span>
                 <select value={hoyoSel} onChange={e=>setHoyoSel(parseInt(e.target.value))} style={{ padding:"6px 10px", border:`1px solid ${hoyosUsados.has(hoyoSel)?D.danger:D.border}`, borderRadius:8, background:D.surface, color:D.text, fontSize:13 }}>
