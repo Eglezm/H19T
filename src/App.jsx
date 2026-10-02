@@ -280,9 +280,12 @@ function todosLosJugadores(torneo) {
 }
 
 // Construye la clasificación de O'Yes: agrupa por jugador tomando su MEJOR (menor) distancia,
-// ya sea global ("general") o separada por hoyo físico ("hoyo")
-function clasificacionOyes(torneo) {
-  const entradas = Object.values(torneo.oyesEntradas || {});
+// ya sea global ("general") o separada por hoyo físico ("hoyo").
+// excluirJugadorIds: jugadores que ya ganaron un Premio Especial — un mismo jugador no puede
+// llevarse un Premio Especial Y además un lugar premiado de O'Yes, así que se excluyen por
+// completo de esta clasificación (en todos los hoyos/grupos) y su lugar lo ocupa el siguiente mejor.
+function clasificacionOyes(torneo, excluirJugadorIds = []) {
+  const entradas = Object.values(torneo.oyesEntradas || {}).filter(e => !excluirJugadorIds.includes(e.jugadorId));
   const modo = torneo.oyes?.modo || "general";
   const mejorPorJugador = (lista) => {
     const map = {};
@@ -318,26 +321,40 @@ function primerHoleInOne(entradasConId, filtroFn) {
 // Calcula los ganadores de los Premios Especiales configurados (si están activados), a partir
 // de las anotaciones ya existentes de O'Yes. No modifica ni reemplaza la clasificación normal
 // de O'Yes: son dos capas de información independientes que conviven con sus propios datos.
+// Exclusividad de premios: un mismo jugador nunca puede llevarse dos premios. El Premio Especial 1
+// (Hoyo 1 o 18) se calcula primero; si alguien ya lo ganó, queda fuera de la carrera por el Premio
+// Especial 2 (Hoyos Participantes), que pasa a buscar su ganador entre el resto de anotaciones.
 function premiosEspecialesOyes(torneo) {
   const pe = torneo.oyes?.premiosEspeciales || {};
   const entradasConId = Object.entries(torneo.oyesEntradas || {}).map(([id, e]) => ({ ...e, id }));
   const resultado = {};
+  let ganadorPE1 = null;
   if (pe.hoyo118?.activo) {
+    ganadorPE1 = primerHoleInOne(entradasConId, e => e.holeJugado === 1 || e.holeJugado === 18);
     resultado.hoyo118 = {
       nombre: pe.hoyo118.nombre || "",
       valor: pe.hoyo118.valor || "",
-      ganador: primerHoleInOne(entradasConId, e => e.holeJugado === 1 || e.holeJugado === 18),
+      ganador: ganadorPE1,
     };
   }
   if (pe.participantes?.activo) {
     const holesParticipantes = torneo.oyes?.holes || [];
+    const candidatosPE2 = ganadorPE1 ? entradasConId.filter(e => e.jugadorId !== ganadorPE1.jugadorId) : entradasConId;
     resultado.participantes = {
       nombre: pe.participantes.nombre || "",
       valor: pe.participantes.valor || "",
-      ganador: primerHoleInOne(entradasConId, e => holesParticipantes.includes(e.holeFisico)),
+      ganador: primerHoleInOne(candidatosPE2, e => holesParticipantes.includes(e.holeFisico)),
     };
   }
   return resultado;
+}
+
+// Reúne los jugadorId de todos los ganadores de Premios Especiales ya asignados — se usa para
+// excluirlos de la clasificación normal de O'Yes (un jugador no puede llevarse ambos premios).
+function jugadoresGanadoresPremiosEspeciales(especiales) {
+  return Object.values(especiales)
+    .map(it => it.ganador?.jugadorId)
+    .filter(id => id !== undefined && id !== null);
 }
 
 // Nombre de la unidad + nombres de los jugadores (si es un equipo de 2+)
@@ -1014,9 +1031,10 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
   const sinOyes = !torneo.oyes || !torneo.oyes.holes || torneo.oyes.holes.length===0;
   const premios = torneo.oyes?.premios || 3;
   const premiosNombres = torneo.oyes?.premiosNombres || [];
-  const grupos = sinOyes ? [] : clasificacionOyes(torneo);
   const especiales = premiosEspecialesOyes(torneo);
   const hayEspeciales = Object.keys(especiales).length > 0;
+  const excluidosDeOyes = jugadoresGanadoresPremiosEspeciales(especiales);
+  const grupos = sinOyes ? [] : clasificacionOyes(torneo, excluidosDeOyes);
   // El O'Yes puede mostrar varias tarjetas a la vez (una por hoyo). Solo avisamos que el ciclo
   // completo terminó (para pasar a la siguiente pantalla) cuando TODAS ya llegaron a su última
   // página, no con que termine la primera. (Los hooks van antes del return condicional de abajo
