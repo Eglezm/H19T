@@ -299,6 +299,47 @@ function clasificacionOyes(torneo) {
   return [{ hole:null, ranking: mejorPorJugador(entradas), intentos: entradas.length }];
 }
 
+// ─── PREMIOS ESPECIALES DE HOLE IN ONE (capa adicional, independiente de la clasificación de O'Yes) ──
+// Reutiliza exactamente las mismas anotaciones de oyesEntradas (nunca crea un registro paralelo).
+// Un Hole in One = anotación con 0.00cm, igual que ya lo detecta el resto de la app.
+function esHoleInOneEntrada(e) {
+  return Math.round((e?.cm || 0) * 100) === 0;
+}
+
+// Dentro de una lista de Hole in One candidatos, determina cuál fue el PRIMERO en registrarse
+// (por hora exacta de captura, ts). En caso de empate exacto de ts, se desempata de forma
+// determinística con el id del registro (nunca al azar ni por orden de visualización).
+function primerHoleInOne(entradasConId, filtroFn) {
+  const candidatos = entradasConId.filter(e => esHoleInOneEntrada(e) && filtroFn(e));
+  if (candidatos.length === 0) return null;
+  return candidatos.slice().sort((a, b) => (a.ts||0) - (b.ts||0) || String(a.id).localeCompare(String(b.id)))[0];
+}
+
+// Calcula los ganadores de los Premios Especiales configurados (si están activados), a partir
+// de las anotaciones ya existentes de O'Yes. No modifica ni reemplaza la clasificación normal
+// de O'Yes: son dos capas de información independientes que conviven con sus propios datos.
+function premiosEspecialesOyes(torneo) {
+  const pe = torneo.oyes?.premiosEspeciales || {};
+  const entradasConId = Object.entries(torneo.oyesEntradas || {}).map(([id, e]) => ({ ...e, id }));
+  const resultado = {};
+  if (pe.hoyo118?.activo) {
+    resultado.hoyo118 = {
+      nombre: pe.hoyo118.nombre || "",
+      valor: pe.hoyo118.valor || "",
+      ganador: primerHoleInOne(entradasConId, e => e.holeJugado === 1 || e.holeJugado === 18),
+    };
+  }
+  if (pe.participantes?.activo) {
+    const holesParticipantes = torneo.oyes?.holes || [];
+    resultado.participantes = {
+      nombre: pe.participantes.nombre || "",
+      valor: pe.participantes.valor || "",
+      ganador: primerHoleInOne(entradasConId, e => holesParticipantes.includes(e.holeFisico)),
+    };
+  }
+  return resultado;
+}
+
 // Nombre de la unidad + nombres de los jugadores (si es un equipo de 2+)
 function nombreConJugadores(unidad) {
   if (!unidad) return "";
@@ -933,12 +974,49 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete }) {
   );
 }
 
+// Panel de Premios Especiales de Hole in One — se integra visualmente con el estilo de O'Yes
+// (misma tarjeta, mismo dorado de logro) pero es una categoría aparte: no toca la clasificación
+// normal de O'Yes ni sus premios por lugar.
+function PremiosEspecialesPanel({ especiales, big }) {
+  const items = [
+    especiales.hoyo118 ? { key:"hoyo118", titulo:"Primer Hole in One — Hoyo 1 o 18", ...especiales.hoyo118 } : null,
+    especiales.participantes ? { key:"participantes", titulo:"Primer Hole in One — Hoyos participantes", ...especiales.participantes } : null,
+  ].filter(Boolean);
+  if (items.length === 0) return null;
+  return (
+    <Card tv={big} style={big ? { padding:24 } : {}}>
+      <SLabel style={big ? { fontSize:16 } : {}}><Sparkles size={14}/> Premios Especiales</SLabel>
+      <div style={{ display:"flex", flexDirection:"column", gap:big?16:10 }}>
+        {items.map(it => (
+          <div key={it.key} style={{ padding:big?"16px 18px":"10px 12px", borderRadius:12, background:D.achievementDim, border:`1px solid ${D.achievement}` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:big?15:12, fontWeight:700, color:D.achievement, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:it.ganador?8:0 }}>
+              <Trophy size={big?18:13}/> {it.titulo}{it.nombre ? ` — ${it.nombre}` : ""}
+            </div>
+            {it.ganador ? (
+              <div style={{ display:"flex", alignItems:"baseline", gap:big?14:8, flexWrap:"wrap" }}>
+                <div style={{ fontFamily:FONT_DISPLAY, fontSize:big?26:16, fontWeight:700, color:D.text }}>{it.ganador.jugadorNombre}</div>
+                <div style={{ fontSize:big?14:11, color:D.textSub }}>{it.ganador.unidadNombre} · Hoyo {it.ganador.holeJugado ?? it.ganador.holeFisico} · {fmtHora(it.ganador.ts)}</div>
+                {it.valor && <div style={{ fontSize:big?13:10, color:D.achievement, fontWeight:600 }}>{it.valor}</div>}
+                <div style={{ fontSize:big?14:10, fontWeight:900, color:D.achievement, textTransform:"uppercase", letterSpacing:"0.04em", display:"flex", alignItems:"center", gap:4 }}><Sparkles size={big?16:11}/> Hole in one</div>
+              </div>
+            ) : (
+              <div style={{ fontSize:big?14:12, color:D.textSub }}>Aún sin ganador{it.valor ? ` · ${it.valor}` : ""}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 // ─── CLASIFICACIÓN DE O'YES (reutilizable) ────────
 function OyesLiveView({ torneo, big, onCycleComplete }) {
   const sinOyes = !torneo.oyes || !torneo.oyes.holes || torneo.oyes.holes.length===0;
   const premios = torneo.oyes?.premios || 3;
   const premiosNombres = torneo.oyes?.premiosNombres || [];
   const grupos = sinOyes ? [] : clasificacionOyes(torneo);
+  const especiales = premiosEspecialesOyes(torneo);
+  const hayEspeciales = Object.keys(especiales).length > 0;
   // El O'Yes puede mostrar varias tarjetas a la vez (una por hoyo). Solo avisamos que el ciclo
   // completo terminó (para pasar a la siguiente pantalla) cuando TODAS ya llegaron a su última
   // página, no con que termine la primera. (Los hooks van antes del return condicional de abajo
@@ -950,6 +1028,11 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
     if (completedRef.current >= grupos.length && onCycleComplete) onCycleComplete();
   };
   if (sinOyes) {
+    if (hayEspeciales) {
+      // Puede no haber hoyos de O'Yes "normal" configurados y aun así tener Premios Especiales
+      // activos (son independientes) — se muestran solos en ese caso.
+      return <PremiosEspecialesPanel especiales={especiales} big={big} />;
+    }
     return (
       <Card tv={big} style={big ? { padding:24 } : {}}>
         <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> O'Yes</SLabel>
@@ -959,6 +1042,7 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
   }
   return (
     <>
+      {hayEspeciales && <PremiosEspecialesPanel especiales={especiales} big={big} />}
       {grupos.map((g, gi) => (
         <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={(big && onCycleComplete) ? handleGroupComplete : undefined} />
       ))}
@@ -1653,6 +1737,12 @@ function AdminTorneoApp({ onExit }) {
   const [oyesHoles, setOyesHoles] = useState([]);
   const [oyesPremios, setOyesPremios] = useState(3);
   const [oyesPremiosNombres, setOyesPremiosNombres] = useState([]); // nombre del premio por lugar, ej. "Viaje a Cancún"
+  const [peHoyo118Activo, setPeHoyo118Activo] = useState(false);
+  const [peHoyo118Nombre, setPeHoyo118Nombre] = useState("");
+  const [peHoyo118Valor, setPeHoyo118Valor] = useState("");
+  const [pePartActivo, setPePartActivo] = useState(false);
+  const [pePartNombre, setPePartNombre] = useState("");
+  const [pePartValor, setPePartValor] = useState("");
   const [oyesSyncedFor, setOyesSyncedFor] = useState(null);
   const [logoCampoObj, setLogoCampoObj] = useState(null);
   const [logoTorneoObj, setLogoTorneoObj] = useState(null);
@@ -1753,6 +1843,13 @@ function AdminTorneoApp({ onExit }) {
         setOyesHoles(torneo.oyes.holes || []);
         setOyesPremios(torneo.oyes.premios || 3);
         setOyesPremiosNombres(torneo.oyes.premiosNombres || []);
+        const pe = torneo.oyes.premiosEspeciales || {};
+        setPeHoyo118Activo(!!pe.hoyo118?.activo);
+        setPeHoyo118Nombre(pe.hoyo118?.nombre || "");
+        setPeHoyo118Valor(pe.hoyo118?.valor || "");
+        setPePartActivo(!!pe.participantes?.activo);
+        setPePartNombre(pe.participantes?.nombre || "");
+        setPePartValor(pe.participantes?.valor || "");
       }
       setOyesSyncedFor(torneoId);
     }
@@ -1919,8 +2016,13 @@ function AdminTorneoApp({ onExit }) {
   const guardarConfigOyes = () => {
     const premiosFinal = Math.max(1, Math.min(10, parseInt(oyesPremios, 10) || 1));
     const premiosNombresFinal = Array.from({ length: premiosFinal }, (_, i) => (oyesPremiosNombres[i] || "").trim());
+    const premiosEspecialesFinal = {
+      hoyo118: { activo: !!peHoyo118Activo, nombre: peHoyo118Nombre.trim(), valor: peHoyo118Valor.trim() },
+      participantes: { activo: !!pePartActivo, nombre: pePartNombre.trim(), valor: pePartValor.trim() },
+    };
     set(ref(db, `torneos/${torneoId}/oyes`), {
       modo: oyesModo, holes: oyesHoles, premios: premiosFinal, premiosNombres: premiosNombresFinal,
+      premiosEspeciales: premiosEspecialesFinal,
       password: torneo?.oyes?.password || genPassword(),
     });
   };
@@ -2605,6 +2707,38 @@ function AdminTorneoApp({ onExit }) {
                   />
                 </div>
               ))}
+            </div>
+          </Card>
+
+          <Card>
+            <SLabel><Sparkles size={14}/> Premios Especiales</SLabel>
+            <div style={{ fontSize:11, color:D.textSub, marginBottom:12 }}>Premios adicionales e independientes del O'Yes normal, para el primer Hole in One del torneo. Puedes activar uno, ambos o ninguno.</div>
+
+            <div style={{ border:`1px solid ${peHoyo118Activo?D.gold:D.border}`, borderRadius:12, padding:12, marginBottom:10, background:peHoyo118Activo?D.goldDim:"transparent" }}>
+              <button onClick={() => setPeHoyo118Activo(v => !v)} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:0, border:"none", background:"transparent", color:peHoyo118Activo?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", textAlign:"left", marginBottom:peHoyo118Activo?10:0 }}>
+                <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${peHoyo118Activo?D.gold:D.border}`,background:peHoyo118Activo?D.gold:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{peHoyo118Activo && <Check size={12} color="#fff"/>}</div>
+                Primer Hole in One en Hoyo 1 o 18
+              </button>
+              {peHoyo118Activo && (
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  <input value={peHoyo118Nombre} onChange={e=>setPeHoyo118Nombre(e.target.value)} placeholder="Nombre del premio (opcional)" style={{ padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
+                  <input value={peHoyo118Valor} onChange={e=>setPeHoyo118Valor(e.target.value)} placeholder="Valor o descripción del premio (opcional)" style={{ padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
+                </div>
+              )}
+            </div>
+
+            <div style={{ border:`1px solid ${pePartActivo?D.gold:D.border}`, borderRadius:12, padding:12, background:pePartActivo?D.goldDim:"transparent" }}>
+              <button onClick={() => setPePartActivo(v => !v)} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:0, border:"none", background:"transparent", color:pePartActivo?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", textAlign:"left", marginBottom:pePartActivo?10:0 }}>
+                <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${pePartActivo?D.gold:D.border}`,background:pePartActivo?D.gold:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{pePartActivo && <Check size={12} color="#fff"/>}</div>
+                Primer Hole in One en Hoyos Participantes
+              </button>
+              {pePartActivo && (
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  <div style={{ fontSize:11, color:D.textSub }}>Usa los mismos hoyos participantes seleccionados arriba{oyesHoles.length>0 ? ` (Hoyo ${oyesHoles.join(", ")})` : ""}.</div>
+                  <input value={pePartNombre} onChange={e=>setPePartNombre(e.target.value)} placeholder="Nombre del premio (opcional)" style={{ padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
+                  <input value={pePartValor} onChange={e=>setPePartValor(e.target.value)} placeholder="Valor o descripción del premio (opcional)" style={{ padding:"8px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:13, boxSizing:"border-box" }} />
+                </div>
+              )}
             </div>
           </Card>
 
