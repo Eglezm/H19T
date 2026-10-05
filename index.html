@@ -112,6 +112,9 @@
       @media (prefers-reduced-motion: reduce) {
         .h19-marquee-track { animation:none; }
       }
+      /* Franja de patrocinadores estandarizada: espaciado por padding (no gap), para que el
+         salto del loop quede oculto dentro del propio padding del último logo del set. */
+      .h19-sponsor-track img { padding-right:70px; }
 
       /* ── O'Yes: hole in one — alterna el nombre del premio con "Hole in one" ── */
       @keyframes h19HioFlashA { 0%,45% { opacity:1; } 50%,95% { opacity:0; } 100% { opacity:1; } }
