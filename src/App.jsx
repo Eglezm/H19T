@@ -9,6 +9,7 @@ import {
   Undo2, KeyRound, Tv, Share2, LogOut, Plus, Minus, MapPin, ListChecks, Medal, ListOrdered,
   Image as ImageIcon, Building2, Handshake,
 } from "lucide-react";
+import SponsorStrip from "./SponsorStrip";
 
 // ─── FIREBASE ──────────────────────────────────────
 // Usa el mismo proyecto de Firebase que H19 Golf (misma cuenta), pero TODOS
@@ -726,29 +727,6 @@ function EncabezadoLogos({ torneo, big, side, height: heightOverride }) {
   );
 }
 
-// Franja de logos de patrocinadores — discreta, solo aparece si el admin configuró al menos uno.
-// Compatible con patrocinadores guardados como string (formato viejo) u objeto (formato nuevo).
-// Se desplaza en un marquee infinito, lento y continuo (la lista se duplica una vez para que el
-// ciclo no se note al reiniciar); respeta prefers-reduced-motion vía la clase .h19-marquee-track.
-function FranjaPatrocinadores({ torneo, big }) {
-  const items = normalizarPatrocinadores(torneo?.logos?.patrocinadores).map(p => ({ ...p, urlResuelta: getLogoUrl(p) })).filter(p => p.urlResuelta);
-  if (items.length === 0) return null;
-  const gap = big ? 24 : 20;
-  const duracion = Math.min(50, Math.max(35, items.length * 6)); // 35–50s según la cantidad de logos
-  return (
-    <div style={{ width:"100%", padding:big?"4px 0 0":"12px 10px" }}>
-      {!big && <div style={{ fontSize:9, color:D.textDim, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, textAlign:"center", marginBottom:2 }}>Patrocinado por</div>}
-      <div style={{ overflow:"hidden", width:"100%" }}>
-        <div className="h19-marquee-track" style={{ gap, "--h19-marquee-duration":`${duracion}s` }}>
-          {[...items, ...items].map((p, i) => (
-            <img key={`${p.id||i}-${i}`} src={p.urlResuelta} alt={p.nombre || "Patrocinador"} style={{ height:big?38:34, width:"auto", maxWidth:big?190:190, objectFit:"contain", flexShrink:0 }} onError={e=>{e.target.style.display="none";}} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── TARJETA DE POSICIONES (reutilizable) ─────────
 function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
   const allRows = leaderboard(torneo);
@@ -1307,7 +1285,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             </div>
           )}
         </div>
-        <FranjaPatrocinadores torneo={torneo} big={tvMode} />
+        <SponsorStrip big={tvMode} />
       </div>
       <div style={tvMode ? { padding:"12px 24px 6px", maxWidth:"98vw", width:"100%", margin:"0 auto", flex:"1 1 0", minHeight:0, overflow:"hidden" } : { padding:"12px 12px 32px" }}>
         {tvMode ? (
