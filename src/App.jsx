@@ -1334,7 +1334,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
       </div>
       {/* Banda de patrocinadores fija al pie: flexShrink:0 en pantalla/proyector (el contenido se
           reajusta en el espacio restante) y sticky al fondo en celular, así nunca queda fuera de vista. */}
-      <div style={{ flexShrink:0, position:"sticky", bottom:0, zIndex:20, background:"rgba(255,255,255,0.92)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderTop:`1px solid ${D.border}`, padding:tvMode?"4px 0":"0" }}>
+      <div style={{ flexShrink:0, position:"sticky", bottom:0, zIndex:20, background:"rgba(255,255,255,0.92)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderTop:`1px solid ${D.border}`, padding:tvMode?"2px 0 max(4px, 1.5vh)":"0" }}>
         <SponsorStrip big={tvMode} />
       </div>
     </div>
@@ -2062,6 +2062,7 @@ function AdminTorneoApp({ onExit }) {
   // toque no se reflejaba. Clave: `${unidadId}:${holeIdx}`.
   const [pendingScoresAdmin, setPendingScoresAdmin] = useState({});
   const [selUnidades, setSelUnidades] = useState([]); // orden importa (cadena)
+  const [nombreTorneoEdit, setNombreTorneoEdit] = useState(null); // null = sin editar (muestra torneo.nombre)
   const [grupoMax, setGrupoMax] = useState(4); // límite de unidades por grupo — el admin lo decide (en individual pueden salir más de 4 de un hoyo)
 
   const [codigosUsados, setCodigosUsados] = useState(new Set());
@@ -2778,6 +2779,17 @@ function AdminTorneoApp({ onExit }) {
         <div style={{ padding:"12px 12px" }}>
           <TabBar tabs={adminTabs} active="unidades" onChange={setScreen} />
           <Card>
+            <SLabel>Nombre del torneo</SLabel>
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={nombreTorneoEdit ?? torneo.nombre} onChange={e=>setNombreTorneoEdit(e.target.value)} placeholder="Nombre del torneo"
+                style={{ flex:1, minWidth:0, padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box" }} />
+              <button disabled={nombreTorneoEdit===null || !nombreTorneoEdit.trim() || nombreTorneoEdit.trim()===torneo.nombre}
+                onClick={() => { const n = nombreTorneoEdit.trim(); set(ref(db, `torneos/${torneoId}/nombre`), n).then(() => { setNombreTorneoEdit(null); setGuardadoOk("Nombre del torneo actualizado"); setTimeout(()=>setGuardadoOk(""), 2000); }); }}
+                style={{ padding:"0 14px", border:"none", borderRadius:10, background:(nombreTorneoEdit===null || !nombreTorneoEdit.trim() || nombreTorneoEdit.trim()===torneo.nombre)?D.border:D.gold, color:(nombreTorneoEdit===null || !nombreTorneoEdit.trim() || nombreTorneoEdit.trim()===torneo.nombre)?D.textDim:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>Guardar</button>
+            </div>
+            <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Se puede cambiar en cualquier momento, incluso con el torneo en curso.</div>
+          </Card>
+          <Card>
             <SLabel>{MODALIDADES[torneo.modalidad].label} · {torneo.nHoles} hoyos · HC {torneo.hcPercent}%</SLabel>
             <div style={{ fontSize:12, color:D.textSub }}>Selecciona {tamañoModalidad} jugador{tamañoModalidad>1?"es":""} para formar {tamañoModalidad>1?"un equipo":"una unidad individual"}.</div>
           </Card>
@@ -2930,6 +2942,7 @@ function AdminTorneoApp({ onExit }) {
                             <div style={{ fontSize:12, fontWeight:700 }}>{u.nombre}</div>
                             {u.jugadores && u.jugadores.length>0 && <div style={{ fontSize:10, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>}
                           </div>
+                          <button onClick={() => { iniciarEdicionUnidad(u); setScreen("unidades"); }} style={{ padding:"4px 10px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:11, cursor:"pointer", flexShrink:0 }}><Pencil size={12}/> Cambiar jugadores</button>
                           <button onClick={() => compartirCodigoIndividual(u)} style={{ padding:"4px 10px", border:"none", borderRadius:8, background:"#25D366", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", flexShrink:0 }}><MessageCircle size={13}/> Enviar</button>
                         </div>
                         <div style={{ fontSize:11, color:D.textSub, marginTop:4 }}>Código (link): <b style={{ color:D.gold }}>{u.codigo}</b></div>
