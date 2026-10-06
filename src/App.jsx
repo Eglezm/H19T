@@ -1291,7 +1291,6 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             </div>
           )}
         </div>
-        <SponsorStrip big={tvMode} />
       </div>
       <div style={tvMode ? { padding:"12px 24px 6px", maxWidth:"98vw", width:"100%", margin:"0 auto", flex:"1 1 0", minHeight:0, overflow:"hidden" } : { padding:"12px 12px 32px" }}>
         {tvMode ? (
@@ -1332,6 +1331,11 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:8 }}>Vista de solo lectura · Actualización automática</div>
           </>
         )}
+      </div>
+      {/* Banda de patrocinadores fija al pie: flexShrink:0 en pantalla/proyector (el contenido se
+          reajusta en el espacio restante) y sticky al fondo en celular, así nunca queda fuera de vista. */}
+      <div style={{ flexShrink:0, position:"sticky", bottom:0, zIndex:20, background:"rgba(255,255,255,0.92)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderTop:`1px solid ${D.border}`, padding:tvMode?"4px 0":"0" }}>
+        <SponsorStrip big={tvMode} />
       </div>
     </div>
   );
