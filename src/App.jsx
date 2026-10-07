@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useLayoutEffect, createContext, useContext } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, remove, get } from "firebase/database";
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from "firebase/storage";
@@ -1170,11 +1170,43 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, r
 // el ancho cambiado disparara una nueva medición, que a su vez volvía a cambiar el ancho... un
 // ciclo que se veía como un temblor constante e ilegible). El pequeño margen en blanco a los
 // lados cuando se reduce el tamaño es preferible a esa inestabilidad.
+// Lienzo fijo 1920x1080 para el modo pantalla/proyector. Todo el modo TV se maqueta SIEMPRE sobre
+// 1920x1080 "px de diseño" y el lienzo completo se escala con transform para ajustarse a la ventana.
+// Así la PC (1920x1080, DPR 1) y Amazon Silk en Fire TV (960x540 CSS px, DPR 2) se ven idénticos,
+// solo proporcionalmente más chicos: ninguna regla depende de window.innerHeight/innerWidth.
+const TV_W = 1920, TV_H = 1080;
+const TVInfoContext = createContext(null);
+function TVCanvas({ children }) {
+  const calc = () => Math.min(window.innerWidth / TV_W, window.innerHeight / TV_H) || 1;
+  const [k, setK] = useState(calc);
+  const [info, setInfo] = useState("");
+  useEffect(() => {
+    const on = () => setK(calc());
+    on();
+    window.addEventListener("resize", on);
+    window.addEventListener("orientationchange", on);
+    return () => { window.removeEventListener("resize", on); window.removeEventListener("orientationchange", on); };
+  }, []);
+  const debug = typeof window !== "undefined" && !!new URLSearchParams(window.location.search).get("debug");
+  return (
+    <div style={{ position:"fixed", left:0, top:0, right:0, bottom:0, overflow:"hidden" }}>
+      <div style={{ position:"absolute", left:"50%", top:"50%", width:TV_W, height:TV_H, transform:`translate(-50%, -50%) scale(${k})`, transformOrigin:"center center" }}>
+        <TVInfoContext.Provider value={debug ? setInfo : null}>{children}</TVInfoContext.Provider>
+      </div>
+      {debug && (
+        <div style={{ position:"absolute", left:8, top:8, zIndex:9999, background:"#000", color:"#0f0", fontSize:16, fontFamily:"monospace", padding:"6px 10px", borderRadius:6, maxWidth:"92%" }}>
+          {`ventana ${window.innerWidth}x${window.innerHeight} · DPR ${window.devicePixelRatio} · screen ${window.screen.width}x${window.screen.height} · lienzo ${TV_W}x${TV_H} · escala TVCanvas ${k.toFixed(3)} · ${info}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AutoFitScale({ children }) {
   const outerRef = useRef(null);
   const innerRef = useRef(null);
   const [scale, setScale] = useState(1);
-  const [dbg, setDbg] = useState(null); // solo con ?debug=1 en la URL: diagnóstico de pantalla
+  const setInfoTV = useContext(TVInfoContext); // solo con ?debug=1: manda el diagnóstico al overlay de TVCanvas
   useLayoutEffect(() => {
     const outer = outerRef.current, inner = innerRef.current;
     if (!outer || !inner) return;
@@ -1183,9 +1215,7 @@ function AutoFitScale({ children }) {
       raf = null;
       const naturalHeight = inner.scrollHeight;
       const availableHeight = outer.clientHeight;
-      if (new URLSearchParams(window.location.search).get("debug")) {
-        setDbg(`ventana ${window.innerWidth}x${window.innerHeight} · DPR ${window.devicePixelRatio} · screen ${window.screen.width}x${window.screen.height} · área central ${outer.clientWidth}x${availableHeight} · alto natural ${naturalHeight} · escala ${Math.min(1, availableHeight/Math.max(1,naturalHeight)).toFixed(2)}`);
-      }
+      if (setInfoTV) setInfoTV(`área central ${outer.clientWidth}x${availableHeight} · alto natural ${naturalHeight} · escala autoajuste ${Math.min(1, availableHeight/Math.max(1,naturalHeight)).toFixed(2)}`);
       if (naturalHeight <= 0 || availableHeight <= 0) return;
       const s = Math.min(1, availableHeight / naturalHeight);
       setScale(prev => (Math.abs(prev - s) > 0.01 ? s : prev));
@@ -1199,7 +1229,6 @@ function AutoFitScale({ children }) {
   }, []);
   return (
     <div ref={outerRef} style={{ height:"100%", overflow:"hidden" }}>
-      {dbg && <div style={{ position:"fixed", left:8, top:8, zIndex:9999, background:"#000", color:"#0f0", fontSize:18, fontFamily:"monospace", padding:"6px 10px", borderRadius:6, maxWidth:"90vw" }}>{dbg}</div>}
       <div ref={innerRef} style={{ transform:`scale(${scale})`, transformOrigin:"top center" }}>
         {children}
       </div>
@@ -1237,13 +1266,13 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
   // 100dvh (alto de viewport "dinámico") en vez de 100vh evita que la barra de direcciones del
   // navegador móvil, al aparecer/ocultarse, dispare mediciones y reajustes de tamaño en cadena.
-  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", width:"100%", maxWidth:"100vw", margin:"0 auto", display:"flex", flexDirection:"column", overflow:"hidden" };
+  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", width:"100%", height:"100%", boxSizing:"border-box", display:"flex", flexDirection:"column", overflow:"hidden" };
   const hayOyes = torneo.oyes?.holes?.length>0;
   const autoViewLabel = { posiciones:"Posiciones", tarjeta:"Tarjeta", oyes:"O'Yes" }[autoViewActual];
   const autoViewIcon = { posiciones:<Trophy size={13}/>, tarjeta:<ClipboardList size={13}/>, oyes:<Target size={13}/> }[autoViewActual];
 
-  return (
-    <div className={tvMode ? "h19-tv-root" : undefined} style={tvMode ? tvStyle : appStyle}>
+  const contenido = (
+    <div style={tvMode ? tvStyle : appStyle}>
       <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"8px 20px 6px":"20px 16px 14px", textAlign:"center", position:"relative", flexShrink:0 }}>
         {!tvMode && (
           <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }} className="no-print">
@@ -1252,9 +1281,9 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             </button>
           </div>
         )}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:`clamp(8px, 2vw, ${tvMode?22:32}px)`, width:"100%" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:tvMode ? 22 : "clamp(8px, 2vw, 32px)", width:"100%" }}>
           {getLogoUrl(torneo?.logos?.campo) && (
-            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, height:tvMode ? 173 : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="campo" />
             </div>
           )}
@@ -1264,7 +1293,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             <div style={{ fontSize:tvMode?12:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase", marginTop:tvMode?2:1 }}>{campoNombre} · {modLabel} · HC {torneo.hcPercent}%</div>
           </div>
           {getLogoUrl(torneo?.logos?.torneo) && (
-            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, height:tvMode ? "clamp(85px, 16vh, 230px)" : "clamp(130px, 30vw, 220px)" }}>
+            <div style={{ flex:"1 1 0", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, height:tvMode ? 173 : "clamp(130px, 30vw, 220px)" }}>
               <EncabezadoLogos torneo={torneo} big={tvMode} side="torneo" />
             </div>
           )}
@@ -1297,7 +1326,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
           )}
         </div>
       </div>
-      <div style={tvMode ? { padding:"12px 24px 6px", maxWidth:"98vw", width:"100%", margin:"0 auto", flex:"1 1 0", minHeight:0, overflow:"hidden" } : { padding:"12px 12px 32px" }}>
+      <div style={tvMode ? { padding:"12px 24px 6px", width:"100%", boxSizing:"border-box", flex:"1 1 0", minHeight:0, overflow:"hidden" } : { padding:"12px 12px 32px" }}>
         {tvMode ? (
           <AutoFitScale>
             {vista === "auto" ? (
@@ -1339,11 +1368,13 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
       </div>
       {/* Banda de patrocinadores fija al pie: flexShrink:0 en pantalla/proyector (el contenido se
           reajusta en el espacio restante) y sticky al fondo en celular, así nunca queda fuera de vista. */}
-      <div style={{ flexShrink:0, position:"sticky", bottom:0, zIndex:20, background:"rgba(255,255,255,0.92)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderTop:`1px solid ${D.border}`, padding:tvMode?"2px 0 max(4px, 1.5vh)":"0" }}>
+      <div style={{ flexShrink:0, position:"sticky", bottom:0, zIndex:20, background:"rgba(255,255,255,0.92)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderTop:`1px solid ${D.border}`, padding:tvMode?"2px 0 16px":"0" }}>
         <SponsorStrip big={tvMode} />
       </div>
     </div>
   );
+  // Modo pantalla completa: todo sobre el lienzo fijo 1920x1080 escalado a la ventana.
+  return tvMode ? <TVCanvas>{contenido}</TVCanvas> : contenido;
 }
 
 // ─── VISTA DE EQUIPO (acceso por código) ──────────
