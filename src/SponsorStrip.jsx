@@ -10,7 +10,9 @@ const ESCALA_GLOBAL = 1;
 import { sponsors } from "./sponsors";
 
 export default function SponsorStrip({ big }) {
-  const k = 1; // el escalado del modo TV lo hace TVCanvas (lienzo 1920x1080), no esta banda
+  // Modo TV: banda más baja (70% del tamaño). El escalado a la pantalla lo hace TVCanvas; esto solo
+  // reduce proporcionalmente todos los logos por igual para que la franja sea delgada.
+  const k = big ? 0.7 : 1;
   if (!sponsors || sponsors.length === 0) return null;
   const duracion = Math.min(50, Math.max(35, sponsors.length * 6)); // 35–50s según cantidad de logos
 
