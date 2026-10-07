@@ -7,26 +7,10 @@
 // Nunca ajustes el w de un logo individual para ese fin.
 const ESCALA_GLOBAL = 1;
 
-import { useState, useEffect } from "react";
 import { sponsors } from "./sponsors";
 
-// En modo pantalla/proyector la banda se reduce en proporción al alto del viewport (referencia
-// 1080 px). Así, en pantallas de baja resolución lógica (p. ej. Amazon Silk en TV, ~540 px de alto)
-// la banda no se come el espacio de la información central. Todos los logos escalan por igual.
-function useFactorViewport(big) {
-  const calc = () => (big && typeof window !== "undefined") ? Math.min(1, Math.max(0.4, window.innerHeight / 1080)) : 1;
-  const [k, setK] = useState(calc);
-  useEffect(() => {
-    const on = () => setK(calc());
-    on();
-    window.addEventListener("resize", on);
-    return () => window.removeEventListener("resize", on);
-  }, [big]);
-  return k;
-}
-
 export default function SponsorStrip({ big }) {
-  const k = useFactorViewport(big);
+  const k = 1; // el escalado del modo TV lo hace TVCanvas (lienzo 1920x1080), no esta banda
   if (!sponsors || sponsors.length === 0) return null;
   const duracion = Math.min(50, Math.max(35, sponsors.length * 6)); // 35–50s según cantidad de logos
 
