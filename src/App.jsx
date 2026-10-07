@@ -1174,6 +1174,7 @@ function AutoFitScale({ children }) {
   const outerRef = useRef(null);
   const innerRef = useRef(null);
   const [scale, setScale] = useState(1);
+  const [dbg, setDbg] = useState(null); // solo con ?debug=1 en la URL: diagnóstico de pantalla
   useLayoutEffect(() => {
     const outer = outerRef.current, inner = innerRef.current;
     if (!outer || !inner) return;
@@ -1182,6 +1183,9 @@ function AutoFitScale({ children }) {
       raf = null;
       const naturalHeight = inner.scrollHeight;
       const availableHeight = outer.clientHeight;
+      if (new URLSearchParams(window.location.search).get("debug")) {
+        setDbg(`ventana ${window.innerWidth}x${window.innerHeight} · DPR ${window.devicePixelRatio} · screen ${window.screen.width}x${window.screen.height} · área central ${outer.clientWidth}x${availableHeight} · alto natural ${naturalHeight} · escala ${Math.min(1, availableHeight/Math.max(1,naturalHeight)).toFixed(2)}`);
+      }
       if (naturalHeight <= 0 || availableHeight <= 0) return;
       const s = Math.min(1, availableHeight / naturalHeight);
       setScale(prev => (Math.abs(prev - s) > 0.01 ? s : prev));
@@ -1195,6 +1199,7 @@ function AutoFitScale({ children }) {
   }, []);
   return (
     <div ref={outerRef} style={{ height:"100%", overflow:"hidden" }}>
+      {dbg && <div style={{ position:"fixed", left:8, top:8, zIndex:9999, background:"#000", color:"#0f0", fontSize:18, fontFamily:"monospace", padding:"6px 10px", borderRadius:6, maxWidth:"90vw" }}>{dbg}</div>}
       <div ref={innerRef} style={{ transform:`scale(${scale})`, transformOrigin:"top center" }}>
         {children}
       </div>
@@ -1232,13 +1237,13 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
   // 100dvh (alto de viewport "dinámico") en vez de 100vh evita que la barra de direcciones del
   // navegador móvil, al aparecer/ocultarse, dispare mediciones y reajustes de tamaño en cadena.
-  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", height:"100dvh", width:"100%", margin:"0 auto", display:"flex", flexDirection:"column", overflow:"hidden" };
+  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", width:"100%", maxWidth:"100vw", margin:"0 auto", display:"flex", flexDirection:"column", overflow:"hidden" };
   const hayOyes = torneo.oyes?.holes?.length>0;
   const autoViewLabel = { posiciones:"Posiciones", tarjeta:"Tarjeta", oyes:"O'Yes" }[autoViewActual];
   const autoViewIcon = { posiciones:<Trophy size={13}/>, tarjeta:<ClipboardList size={13}/>, oyes:<Target size={13}/> }[autoViewActual];
 
   return (
-    <div style={tvMode ? tvStyle : appStyle}>
+    <div className={tvMode ? "h19-tv-root" : undefined} style={tvMode ? tvStyle : appStyle}>
       <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"8px 20px 6px":"20px 16px 14px", textAlign:"center", position:"relative", flexShrink:0 }}>
         {!tvMode && (
           <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }} className="no-print">
