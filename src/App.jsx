@@ -1185,15 +1185,22 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, r
 // 1920x1080 "px de diseño" y el lienzo completo se escala con transform para ajustarse a la ventana.
 // Así la PC (1920x1080, DPR 1) y Amazon Silk en Fire TV (960x540 CSS px, DPR 2) se ven idénticos,
 // solo proporcionalmente más chicos: ninguna regla depende de window.innerHeight/innerWidth.
-const TV_W = 1920, TV_H = 1080;
-const TV_STRIP_H = 92; // alto reservado (en px de lienzo) para la banda de patrocinadores al pie del modo TV
+const TV_W = 1920, TV_H = 1080; // tamaño de diseño de referencia (16:9)
+const TV_STRIP_H = 80; // alto reservado (px de lienzo) para la banda de patrocinadores al pie del modo TV
 const TVInfoContext = createContext(null);
+// El lienzo se escala con el mismo factor "ajustar" (min de ancho/alto contra 1920x1080), pero su
+// tamaño lógico se estira en la dimensión sobrante para CUBRIR TODA la ventana: sin franjas vacías
+// a los lados (pantallas más anchas que 16:9, como Silk con barra de direcciones) ni abajo.
 function TVCanvas({ children }) {
-  const calc = () => Math.min(window.innerWidth / TV_W, window.innerHeight / TV_H) || 1;
-  const [k, setK] = useState(calc);
+  const calc = () => {
+    const vw = window.innerWidth || TV_W, vh = window.innerHeight || TV_H;
+    const k = Math.min(vw / TV_W, vh / TV_H) || 1;
+    return { k, w: vw / k, h: vh / k };
+  };
+  const [dim, setDim] = useState(calc);
   const [info, setInfo] = useState("");
   useEffect(() => {
-    const on = () => setK(calc());
+    const on = () => setDim(calc());
     on();
     window.addEventListener("resize", on);
     window.addEventListener("orientationchange", on);
@@ -1202,12 +1209,12 @@ function TVCanvas({ children }) {
   const debug = typeof window !== "undefined" && !!new URLSearchParams(window.location.search).get("debug");
   return (
     <div style={{ position:"fixed", left:0, top:0, right:0, bottom:0, overflow:"hidden" }}>
-      <div style={{ position:"absolute", left:"50%", top:"50%", width:TV_W, height:TV_H, transform:`translate(-50%, -50%) scale(${k})`, transformOrigin:"center center" }}>
+      <div style={{ position:"absolute", left:0, top:0, width:dim.w, height:dim.h, transform:`scale(${dim.k})`, transformOrigin:"top left" }}>
         <TVInfoContext.Provider value={debug ? setInfo : null}>{children}</TVInfoContext.Provider>
       </div>
       {debug && (
         <div style={{ position:"absolute", left:8, top:8, zIndex:9999, background:"#000", color:"#0f0", fontSize:16, fontFamily:"monospace", padding:"6px 10px", borderRadius:6, maxWidth:"92%" }}>
-          {`ventana ${window.innerWidth}x${window.innerHeight} · DPR ${window.devicePixelRatio} · screen ${window.screen.width}x${window.screen.height} · lienzo ${TV_W}x${TV_H} · escala TVCanvas ${k.toFixed(3)} · ${info}`}
+          {`ventana ${window.innerWidth}x${window.innerHeight} · DPR ${window.devicePixelRatio} · screen ${window.screen.width}x${window.screen.height} · lienzo ${Math.round(dim.w)}x${Math.round(dim.h)} · escala TVCanvas ${dim.k.toFixed(3)} · ${info}`}
         </div>
       )}
     </div>
@@ -1278,7 +1285,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
   // 100dvh (alto de viewport "dinámico") en vez de 100vh evita que la barra de direcciones del
   // navegador móvil, al aparecer/ocultarse, dispare mediciones y reajustes de tamaño en cadena.
-  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", width:TV_W, height:TV_H, position:"relative", boxSizing:"border-box", display:"flex", flexDirection:"column", overflow:"hidden" };
+  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", position:"absolute", left:0, top:0, right:0, bottom:0, boxSizing:"border-box", display:"flex", flexDirection:"column", overflow:"hidden" };
   const hayOyes = torneo.oyes?.holes?.length>0;
   const autoViewLabel = { posiciones:"Posiciones", tarjeta:"Tarjeta", oyes:"O'Yes" }[autoViewActual];
   const autoViewIcon = { posiciones:<Trophy size={13}/>, tarjeta:<ClipboardList size={13}/>, oyes:<Target size={13}/> }[autoViewActual];
