@@ -1175,6 +1175,7 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, r
 // Así la PC (1920x1080, DPR 1) y Amazon Silk en Fire TV (960x540 CSS px, DPR 2) se ven idénticos,
 // solo proporcionalmente más chicos: ninguna regla depende de window.innerHeight/innerWidth.
 const TV_W = 1920, TV_H = 1080;
+const TV_STRIP_H = 118; // alto reservado (en px de lienzo) para la banda de patrocinadores al pie del modo TV
 const TVInfoContext = createContext(null);
 function TVCanvas({ children }) {
   const calc = () => Math.min(window.innerWidth / TV_W, window.innerHeight / TV_H) || 1;
@@ -1266,7 +1267,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
   const modLabel = MODALIDADES[torneo.modalidad]?.label || torneo.modalidad;
   // 100dvh (alto de viewport "dinámico") en vez de 100vh evita que la barra de direcciones del
   // navegador móvil, al aparecer/ocultarse, dispare mediciones y reajustes de tamaño en cadena.
-  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", width:"100%", height:"100%", boxSizing:"border-box", display:"flex", flexDirection:"column", overflow:"hidden" };
+  const tvStyle = { fontSize:14, fontFamily:FONT_SANS, color:D.text, background:"transparent", width:TV_W, height:TV_H, position:"relative", boxSizing:"border-box", display:"flex", flexDirection:"column", overflow:"hidden" };
   const hayOyes = torneo.oyes?.holes?.length>0;
   const autoViewLabel = { posiciones:"Posiciones", tarjeta:"Tarjeta", oyes:"O'Yes" }[autoViewActual];
   const autoViewIcon = { posiciones:<Trophy size={13}/>, tarjeta:<ClipboardList size={13}/>, oyes:<Target size={13}/> }[autoViewActual];
@@ -1326,7 +1327,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
           )}
         </div>
       </div>
-      <div style={tvMode ? { padding:"12px 24px 6px", width:"100%", boxSizing:"border-box", flex:"1 1 0", minHeight:0, overflow:"hidden" } : { padding:"12px 12px 32px" }}>
+      <div style={tvMode ? { padding:"12px 24px 6px", width:"100%", boxSizing:"border-box", flex:"1 1 0", minHeight:0, overflow:"hidden", marginBottom:TV_STRIP_H } : { padding:"12px 12px 32px" }}>
         {tvMode ? (
           <AutoFitScale>
             {vista === "auto" ? (
@@ -1368,7 +1369,9 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
       </div>
       {/* Banda de patrocinadores fija al pie: flexShrink:0 en pantalla/proyector (el contenido se
           reajusta en el espacio restante) y sticky al fondo en celular, así nunca queda fuera de vista. */}
-      <div style={{ flexShrink:0, position:"sticky", bottom:0, zIndex:20, background:"rgba(255,255,255,0.92)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderTop:`1px solid ${D.border}`, padding:tvMode?"2px 0 16px":"0" }}>
+      <div style={tvMode
+        ? { position:"absolute", left:0, right:0, bottom:0, height:TV_STRIP_H, boxSizing:"border-box", zIndex:20, display:"flex", alignItems:"center", overflow:"hidden", background:"rgba(255,255,255,0.92)", borderTop:`1px solid ${D.border}` }
+        : { flexShrink:0, position:"sticky", bottom:0, zIndex:20, background:"rgba(255,255,255,0.92)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderTop:`1px solid ${D.border}` }}>
         <SponsorStrip big={tvMode} />
       </div>
     </div>
