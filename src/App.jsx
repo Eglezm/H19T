@@ -382,10 +382,13 @@ function nombreConJugadores(unidad) {
 }
 
 // Calcula el HC aplicado de una unidad competidora (jugador o equipo)
-function calcHcAplicado(jugadores, hcPercent) {
+// Handicap aplicado: promedio de los HC de la unidad × porcentaje del torneo. A 9 hoyos se aplica
+// el 50% (ej. HC 10 a 18 hoyos → 5 a 9 hoyos). nHoles = 18 por omisión (comportamiento anterior).
+function calcHcAplicado(jugadores, hcPercent, nHoles = 18) {
   const hcs = jugadores.map(j => j.hc || 0);
   const avg = hcs.reduce((a,b) => a+b, 0) / hcs.length;
-  return Math.round(avg * (hcPercent/100));
+  const factorHoyos = nHoles === 9 ? 0.5 : 1;
+  return Math.round(avg * (hcPercent/100) * factorHoyos);
 }
 
 // Construye la cadena de marcaje: cada unidad anota a la siguiente, en círculo
@@ -541,6 +544,9 @@ function usePagedTransition(big, totalPages, showMs = 5000, exitMs = 420, onComp
   }, [big, totalPages]);
   return { page, phase };
 }
+
+// Tiempo que cada página (6 equipos / 6 jugadores) permanece en pantalla en modo pantalla completa.
+const PANTALLA_MS = 8000;
 
 // ─── UI PRIMITIVAS (mismo lenguaje visual que H19 Golf) ──
 // Número animado: hace count-up desde el valor anterior hasta el nuevo cada vez que cambia
@@ -729,12 +735,15 @@ function EncabezadoLogos({ torneo, big, side, height: heightOverride }) {
 
 // ─── TARJETA DE POSICIONES (reutilizable) ─────────
 function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
-  const allRows = leaderboard(torneo);
-  // En pantalla completa (proyección) ciclamos de 6 en 6 equipos, cambiando cada 5s, para que el texto se lea bien;
-  // fuera de pantalla completa se muestra la lista completa (con scroll), como antes.
+  const allRowsCompleto = leaderboard(torneo);
+  // Pantalla completa (proyección): solo los 6 primeros lugares, una página; fuera de pantalla
+  // completa se muestra la lista completa (con scroll), como antes.
   const PAGE_SIZE = 6;
+  const totalTeams = allRowsCompleto.length;
+  // Pantalla completa: solo se muestran los 6 primeros lugares (una sola página) — ahorra tiempo de ciclo.
+  const allRows = big ? allRowsCompleto.slice(0, PAGE_SIZE) : allRowsCompleto;
   const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
-  const { page, phase } = usePagedTransition(big, totalPages, 5000, 420, onCycleComplete);
+  const { page, phase } = usePagedTransition(big, totalPages, PANTALLA_MS, 420, onCycleComplete);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const fs = big ? { name:22, sub:14, total:34, small:13, avatar:46, pos:34 } : { name:13, sub:10, total:17, small:9, avatar:30, pos:24 };
@@ -801,7 +810,7 @@ function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
 
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalPages>1 && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}> · Equipos {startIdx+1}–{Math.min(startIdx+PAGE_SIZE, allRows.length)} de {allRows.length}</span>}</SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalTeams>PAGE_SIZE && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}> · Primeros {PAGE_SIZE} de {totalTeams}</span>}</SLabel>
       <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined}>
       {rows.map((u, localPos) => {
         const pos = startIdx + localPos;
@@ -886,7 +895,7 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete }) {
   // En pantalla completa ciclamos de 6 en 6 equipos cada 5s (igual que Posiciones y O'Yes, para uniformidad).
   const PAGE_SIZE = 6;
   const totalPages = big ? Math.max(1, Math.ceil(allRows.length / PAGE_SIZE)) : 1;
-  const { page, phase } = usePagedTransition(big, totalPages, 5000, 420, onCycleComplete);
+  const { page, phase } = usePagedTransition(big, totalPages, PANTALLA_MS, 420, onCycleComplete);
   const startIdx = big ? page*PAGE_SIZE : 0;
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const pares = torneo.pares;
@@ -1083,13 +1092,15 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
 // cicla de 6 en 6 jugadores, cambiando cada 5s.
 function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete }) {
   const PAGE_SIZE = 6;
-  const totalPages = big ? Math.max(1, Math.ceil(g.ranking.length / PAGE_SIZE)) : 1;
-  const { page, phase } = usePagedTransition(big, totalPages, 5000, 420, onCycleComplete);
+  // Pantalla completa: solo los primeros 12 (2 páginas de 6) — ahorra tiempo de ciclo.
+  const rankingVista = big ? g.ranking.slice(0, 12) : g.ranking;
+  const totalPages = big ? Math.max(1, Math.ceil(rankingVista.length / PAGE_SIZE)) : 1;
+  const { page, phase } = usePagedTransition(big, totalPages, PANTALLA_MS, 420, onCycleComplete);
   const startIdx = big ? page*PAGE_SIZE : 0;
-  const pageRanking = big ? g.ranking.slice(startIdx, startIdx+PAGE_SIZE) : g.ranking;
+  const pageRanking = big ? rankingVista.slice(startIdx, startIdx+PAGE_SIZE) : g.ranking;
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, g.ranking.length)} de ${g.ranking.length}` : ""}</span></SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, rankingVista.length)} de ${rankingVista.length}` : ""}</span></SLabel>
       <OyesRankList key={page} ranking={pageRanking} startIndex={startIdx} premios={premios} premiosNombres={premiosNombres} big={big} rise={big ? (phase==="leaving"?"leave":"rise") : undefined} />
       {big && totalPages>1 && (
         <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
@@ -1175,7 +1186,7 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, r
 // Así la PC (1920x1080, DPR 1) y Amazon Silk en Fire TV (960x540 CSS px, DPR 2) se ven idénticos,
 // solo proporcionalmente más chicos: ninguna regla depende de window.innerHeight/innerWidth.
 const TV_W = 1920, TV_H = 1080;
-const TV_STRIP_H = 84; // alto reservado (en px de lienzo) para la banda de patrocinadores al pie del modo TV
+const TV_STRIP_H = 92; // alto reservado (en px de lienzo) para la banda de patrocinadores al pie del modo TV
 const TVInfoContext = createContext(null);
 function TVCanvas({ children }) {
   const calc = () => Math.min(window.innerWidth / TV_W, window.innerHeight / TV_H) || 1;
@@ -2101,6 +2112,7 @@ function AdminTorneoApp({ onExit }) {
   // toque no se reflejaba. Clave: `${unidadId}:${holeIdx}`.
   const [pendingScoresAdmin, setPendingScoresAdmin] = useState({});
   const [selUnidades, setSelUnidades] = useState([]); // orden importa (cadena)
+  const [confirmHoyos, setConfirmHoyos] = useState(null); // nuevo nº de hoyos pendiente de confirmar (9 | 18 | null)
   const [nombreTorneoEdit, setNombreTorneoEdit] = useState(null); // null = sin editar (muestra torneo.nombre)
   const [grupoMax, setGrupoMax] = useState(4); // límite de unidades por grupo — el admin lo decide (en individual pueden salir más de 4 de un hoyo)
 
@@ -2251,7 +2263,7 @@ function AdminTorneoApp({ onExit }) {
   const crearUnidad = () => {
     if (!torneo || selJugadores.size !== tamañoModalidad) return;
     const jugadores = dir.filter(p => selJugadores.has(p.id)).map(p => ({ id:p.id, name:p.name, hc:p.hc }));
-    const hcAplicado = calcHcAplicado(jugadores, torneo.hcPercent);
+    const hcAplicado = calcHcAplicado(jugadores, torneo.hcPercent, torneo.pares.length);
     const existentes = Object.keys(torneo.unidades||{}).length;
     const uid = `U${existentes+1}`;
     const nombre = tamañoModalidad===1 ? jugadores[0].name : (nombreEquipo.trim() || `Equipo ${existentes+1}`);
@@ -2272,7 +2284,7 @@ function AdminTorneoApp({ onExit }) {
     if (!torneo || !editandoUnidadId) return;
     const jugadores = dir.filter(p => editSelJugadores.has(p.id)).map(p => ({ id:p.id, name:p.name, hc:p.hc }));
     if (jugadores.length !== tamañoModalidad) return;
-    const hcAplicado = calcHcAplicado(jugadores, torneo.hcPercent);
+    const hcAplicado = calcHcAplicado(jugadores, torneo.hcPercent, torneo.pares.length);
     const nombre = tamañoModalidad===1 ? jugadores[0].name : (editNombre.trim() || torneo.unidades[editandoUnidadId].nombre);
     Promise.all([
       set(ref(db, `torneos/${torneoId}/unidades/${editandoUnidadId}/jugadores`), jugadores),
@@ -2293,6 +2305,59 @@ function AdminTorneoApp({ onExit }) {
     });
     Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)));
     setConfirmDisolver(null);
+  };
+
+  // Cambia el número de hoyos (9 ↔ 18) de un torneo ya armado o en curso.
+  // Al pasar de 18 a 9 hay datos que dejan de tener sentido (scores de los hoyos 10-18, grupos que
+  // salían de un hoyo > 9, hoyos de O'Yes fuera de rango); se calculan aparte para pedir confirmación.
+  const efectosCambioHoyos = (n) => {
+    if (!torneo) return { scores:0, grupos:0 };
+    let scores = 0; const gruposSet = new Set();
+    Object.values(torneo.unidades||{}).forEach(u => {
+      for (let i = n; i < torneo.pares.length; i++) { if (u.scores?.[i] !== null && u.scores?.[i] !== undefined) scores++; }
+      if (u.grupoId && (u.hoyoSalida ?? 0) >= n) gruposSet.add(u.grupoId);
+    });
+    return { scores, grupos: gruposSet.size };
+  };
+  const aplicarCambioHoyos = (n) => {
+    if (!torneo || n === torneo.pares.length) { setConfirmHoyos(null); return; }
+    const bp = CAMPOS[torneo.campo]?.pares || Array(18).fill(4);
+    const paresNuevos = n <= torneo.pares.length ? torneo.pares.slice(0, n) : [...torneo.pares, ...bp.slice(torneo.pares.length, n), ...Array(Math.max(0, n - Math.max(bp.length, torneo.pares.length))).fill(4)].slice(0, n);
+    const base = `torneos/${torneoId}`;
+    const updates = {};
+    updates[`${base}/nHoles`] = n;
+    updates[`${base}/pares`] = paresNuevos;
+    // El HC aplicado depende del nº de hoyos (a 9 hoyos es el 50%): se recalcula para todas las unidades.
+    Object.values(torneo.unidades||{}).forEach(u => {
+      if (u.jugadores?.length) updates[`${base}/unidades/${u.id}/hcAplicado`] = calcHcAplicado(u.jugadores, torneo.hcPercent, n);
+    });
+    const gruposAfectados = new Set();
+    Object.values(torneo.unidades||{}).forEach(u => {
+      for (let i = n; i < torneo.pares.length; i++) updates[`${base}/unidades/${u.id}/scores/${i}`] = null;
+      if (u.grupoId && (u.hoyoSalida ?? 0) >= n) gruposAfectados.add(u.grupoId);
+    });
+    // Un grupo cuyo hoyo de salida ya no existe se deshace completo (la cadena de marcaje queda igual de válida
+    // al reasignarlo); las unidades vuelven a "sin grupo".
+    Object.values(torneo.unidades||{}).filter(u => gruposAfectados.has(u.grupoId)).forEach(u => {
+      updates[`${base}/unidades/${u.id}/grupoId`] = null;
+      updates[`${base}/unidades/${u.id}/hoyoSalida`] = null;
+      updates[`${base}/unidades/${u.id}/marcaA`] = null;
+      updates[`${base}/unidades/${u.id}/marcadoPor`] = null;
+    });
+    // O'Yes: los hoyos con premio no pueden exceder los hoyos físicos del nuevo formato.
+    const maxFisico = (CAMPOS[torneo.campo]?.nueveHoyos && n === 18) ? 9 : n;
+    if (torneo.oyes?.holes) {
+      const hs = torneo.oyes.holes.filter(h => h <= maxFisico);
+      if (hs.length !== torneo.oyes.holes.length) updates[`${base}/oyes/holes`] = hs.length ? hs : null;
+    }
+    const pe = torneo.oyes?.premiosEspeciales?.hoyo118?.holes;
+    if (pe) {
+      const hs = pe.filter(h => h <= maxFisico);
+      if (hs.length !== pe.length) updates[`${base}/oyes/premiosEspeciales/hoyo118/holes`] = hs.length ? hs : null;
+    }
+    Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)))
+      .then(() => { setGuardadoOk(`Torneo ahora de ${n} hoyos`); setTimeout(()=>setGuardadoOk(""), 2500); });
+    setConfirmHoyos(null);
   };
 
   const toggleUnidadGrupo = (uid) => {
@@ -2829,7 +2894,39 @@ function AdminTorneoApp({ onExit }) {
             <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Se puede cambiar en cualquier momento, incluso con el torneo en curso.</div>
           </Card>
           <Card>
-            <SLabel>{MODALIDADES[torneo.modalidad].label} · {torneo.nHoles} hoyos · HC {torneo.hcPercent}%</SLabel>
+            <SLabel>Número de hoyos</SLabel>
+            <div style={{ display:"flex", gap:8 }}>
+              {[9,18].map(h => {
+                const act = torneo.pares.length === h;
+                return (
+                  <button key={h} onClick={() => {
+                    if (act) return;
+                    const ef = efectosCambioHoyos(h);
+                    if (ef.scores > 0 || ef.grupos > 0) setConfirmHoyos(h); else aplicarCambioHoyos(h);
+                  }} style={{ flex:1, padding:"10px 12px", border:`1px solid ${act?D.gold:D.border}`, borderRadius:10, background:act?D.goldDim:"transparent", color:act?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:act?"default":"pointer" }}>{act && <Check size={13} style={{marginRight:4}}/>}{h} hoyos</button>
+                );
+              })}
+            </div>
+            {confirmHoyos && (() => {
+              const ef = efectosCambioHoyos(confirmHoyos);
+              return (
+                <div style={{ marginTop:10, padding:10, background:D.redBg, border:`1px solid ${D.danger}`, borderRadius:10 }}>
+                  <div style={{ fontSize:12, color:D.danger, fontWeight:700, marginBottom:6 }}><AlertTriangle size={13} style={{ display:"inline", verticalAlign:"-2px", marginRight:4 }}/>Pasar a {confirmHoyos} hoyos</div>
+                  <div style={{ fontSize:11, color:D.text, marginBottom:8 }}>
+                    {ef.scores > 0 && <div>• Se borrarán {ef.scores} score{ef.scores!==1?"s":""} capturado{ef.scores!==1?"s":""} en los hoyos {confirmHoyos+1} en adelante.</div>}
+                    {ef.grupos > 0 && <div>• Se desharán {ef.grupos} grupo{ef.grupos!==1?"s":""} que salía{ef.grupos!==1?"n":""} de un hoyo mayor a {confirmHoyos} (sus unidades quedan "sin grupo" para reasignarlas).</div>}
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={() => aplicarCambioHoyos(confirmHoyos)} style={{ flex:1, padding:8, border:`1px solid ${D.danger}`, borderRadius:8, background:D.redBg, color:D.danger, fontSize:12, fontWeight:700, cursor:"pointer" }}>Sí, cambiar</button>
+                    <button onClick={() => setConfirmHoyos(null)} style={{ flex:1, padding:8, border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Cancelar</button>
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Se puede cambiar en cualquier momento. El HC aplicado se recalcula solo: a 9 hoyos es el 50% (HC 10 → 5). Al pasar de 18 a 9 se pide confirmación si hay scores o grupos que se verían afectados.</div>
+          </Card>
+          <Card>
+            <SLabel>{MODALIDADES[torneo.modalidad].label} · {torneo.pares.length} hoyos · HC {torneo.hcPercent}%</SLabel>
             <div style={{ fontSize:12, color:D.textSub }}>Selecciona {tamañoModalidad} jugador{tamañoModalidad>1?"es":""} para formar {tamañoModalidad>1?"un equipo":"una unidad individual"}.</div>
           </Card>
           <Card>
