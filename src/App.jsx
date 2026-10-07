@@ -890,7 +890,7 @@ function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
   );
 }
 
-function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete }) {
+function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
   const allRows = leaderboard(torneo);
   // En pantalla completa ciclamos de 6 en 6 equipos cada 5s (igual que Posiciones y O'Yes, para uniformidad).
   const PAGE_SIZE = 6;
@@ -900,11 +900,24 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete }) {
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const pares = torneo.pares;
   const fs = big ? 20 : 11;
+  // Pantalla completa con la tarjeta sola: la tarjeta ocupa todo el alto disponible y las filas se
+  // reparten ese espacio (en vez de dejar un hueco entre la tarjeta y la franja de patrocinadores).
+  const estirar = big && fill;
   return (
-    <Card tv={big} style={big ? { padding:24 } : {}}>
+    <Card tv={big} style={big ? { padding:24, ...(estirar ? { minHeight:"calc(var(--tv-avail, 0px) - 12px)", display:"flex", flexDirection:"column", boxSizing:"border-box" } : {}) } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida{big && totalPages>1 ? ` · Equipos ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, allRows.length)} de ${allRows.length}` : ""}</span></SLabel>
-      <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined} style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, minWidth:pares.length*(big?46:32)+(big?140:90) }}>
+      <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined} style={{ overflowX:big?"hidden":"auto", ...(estirar ? { flex:"1 1 auto", display:"flex", flexDirection:"column" } : {}) }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, ...(big ? { tableLayout:"fixed" } : { minWidth:pares.length*32+90 }), ...(estirar ? { flex:"1 1 auto", height:"100%" } : {}) }}>
+          {big && (
+            <colgroup>
+              <col style={{ width:290 }} />
+              {pares.map((_, h) => <col key={h} />)}
+              <col style={{ width:100 }} />
+              <col style={{ width:100 }} />
+              <col style={{ width:80 }} />
+              <col style={{ width:120 }} />
+            </colgroup>
+          )}
           <thead>
             <tr>
               <th style={{ textAlign:"left", padding:big?"8px 10px":"4px 6px", color:D.textSub, position:"sticky", left:0, background:D.surface }}>Unidad</th>
@@ -1234,6 +1247,9 @@ function AutoFitScale({ children }) {
       raf = null;
       const naturalHeight = inner.scrollHeight;
       const availableHeight = outer.clientHeight;
+      // Alto disponible del área central, expuesto como variable CSS para que una tarjeta única
+      // (p. ej. Tarjeta hoyo por hoyo) pueda estirarse y aprovechar todo el alto de la pantalla.
+      inner.style.setProperty("--tv-avail", `${availableHeight}px`);
       if (setInfoTV) setInfoTV(`área central ${outer.clientWidth}x${availableHeight} · alto natural ${naturalHeight} · escala autoajuste ${Math.min(1, availableHeight/Math.max(1,naturalHeight)).toFixed(2)}`);
       if (naturalHeight <= 0 || availableHeight <= 0) return;
       const s = Math.min(1, availableHeight / naturalHeight);
@@ -1351,7 +1367,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             {vista === "auto" ? (
               <div key={autoSlide} className="h19-tab-panel">
                 {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
-                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
+                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} fill onCycleComplete={goToNextAutoView} />}
                 {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
               </div>
             ) : vista === "oyes" ? (
@@ -1359,7 +1375,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 {vista !== "tarjeta" && <TablaPosiciones torneo={torneo} big={tvMode} />}
-                {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} />}
+                {vista !== "posiciones" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} fill={vista==="tarjeta"} />}
                 {vista === "todo" && hayOyes && <OyesLiveView torneo={torneo} big={tvMode} />}
               </div>
             )}
@@ -1369,7 +1385,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
             {vista === "auto" ? (
               <div key={autoSlide} className="h19-tab-panel">
                 {autoViewActual === "posiciones" && <TablaPosiciones torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
-                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
+                {autoViewActual === "tarjeta" && <TarjetaHoyoPorHoyo torneo={torneo} big={tvMode} fill onCycleComplete={goToNextAutoView} />}
                 {autoViewActual === "oyes" && <OyesLiveView torneo={torneo} big={tvMode} onCycleComplete={goToNextAutoView} />}
               </div>
             ) : vista === "oyes" ? (
