@@ -1175,7 +1175,7 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, r
 // Así la PC (1920x1080, DPR 1) y Amazon Silk en Fire TV (960x540 CSS px, DPR 2) se ven idénticos,
 // solo proporcionalmente más chicos: ninguna regla depende de window.innerHeight/innerWidth.
 const TV_W = 1920, TV_H = 1080;
-const TV_STRIP_H = 118; // alto reservado (en px de lienzo) para la banda de patrocinadores al pie del modo TV
+const TV_STRIP_H = 84; // alto reservado (en px de lienzo) para la banda de patrocinadores al pie del modo TV
 const TVInfoContext = createContext(null);
 function TVCanvas({ children }) {
   const calc = () => Math.min(window.innerWidth / TV_W, window.innerHeight / TV_H) || 1;
