@@ -1857,8 +1857,8 @@ export default function H19T() {
     const vt = params.get("vista");
     const oy = params.get("oyes");
     if (eq) { setActiveCodigo(eq.toUpperCase()); setMode("team"); }
-    else if (oy) { setActiveOyesTorneo(oy); setMode("oyes"); }
-    else if (tr) { setActiveTorneoId(tr); if (vt) setActiveVista(vt); setMode("spectator"); }
+    else if (oy) { setActiveOyesTorneo(oy.trim().toUpperCase()); setMode("oyes"); }
+    else if (tr) { setActiveTorneoId(tr.trim().toUpperCase()); if (vt) setActiveVista(vt); setMode("spectator"); }
     else setMode("home");
   }, []);
 
