@@ -923,7 +923,7 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
               <th style={{ textAlign:"left", padding:big?"8px 10px":"4px 6px", color:D.textSub, position:"sticky", left:0, background:D.surface }}>Unidad</th>
               {pares.map((par, h) => {
                 const ts = teeStyle(teeColor(torneo.campo, h));
-                return <th key={h} style={{ padding:big?"8px 6px":"4px 4px", color:D.textDim, fontWeight:900, minWidth:big?42:28, background:ts?ts.bg:"transparent" }}>{h+1}</th>;
+                return <th key={h} style={{ padding:big?"8px 6px":"4px 4px", color:ts?ts.fg:D.text, fontWeight:900, minWidth:big?42:28, background:ts?ts.bg:"transparent" }}>{h+1}</th>;
               })}
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>Total</th>
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700, borderLeft:`1px solid ${D.border}` }}>vs Par</th>
