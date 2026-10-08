@@ -1107,13 +1107,16 @@ function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete }) {
   const PAGE_SIZE = 6;
   // Pantalla completa: solo los primeros 12 (2 páginas de 6) — ahorra tiempo de ciclo.
   const rankingVista = big ? g.ranking.slice(0, 12) : g.ranking;
-  const totalPages = big ? Math.max(1, Math.ceil(rankingVista.length / PAGE_SIZE)) : 1;
+  // Lugares premiados que aún no tienen ganador: se muestran como filas vacías con su premio.
+  const vacios = Array.from({ length: Math.max(0, Math.min(premios, big ? 12 : premios) - rankingVista.length) }, (_, i) => ({ vacio:true, jugadorId:`vacio-${rankingVista.length+i}` }));
+  const filasVista = [...rankingVista, ...vacios];
+  const totalPages = big ? Math.max(1, Math.ceil(filasVista.length / PAGE_SIZE)) : 1;
   const { page, phase } = usePagedTransition(big, totalPages, PANTALLA_MS, 420, onCycleComplete);
   const startIdx = big ? page*PAGE_SIZE : 0;
-  const pageRanking = big ? rankingVista.slice(startIdx, startIdx+PAGE_SIZE) : g.ranking;
+  const pageRanking = big ? filasVista.slice(startIdx, startIdx+PAGE_SIZE) : filasVista;
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, rankingVista.length)} de ${rankingVista.length}` : ""}</span></SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, filasVista.length)} de ${filasVista.length}` : ""}</span></SLabel>
       <OyesRankList key={page} ranking={pageRanking} startIndex={startIdx} premios={premios} premiosNombres={premiosNombres} big={big} rise={big ? (phase==="leaving"?"leave":"rise") : undefined} />
       {big && totalPages>1 && (
         <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
@@ -1134,6 +1137,17 @@ function OyesRankList({ ranking, startIndex = 0, premios, premiosNombres, big, r
         const pos = startIndex + localPos;
         const esHoleInOne = Math.round((e.cm||0)*100) === 0; // cualquier jugador con 0.00cm es hole in one, sin importar su posición
         const premioNombre = pos<premios ? (premiosNombres[pos]||"").trim() : "";
+        if (e.vacio) return (
+          <div key={e.jugadorId} style={{ display:"flex", flexDirection:"column", padding:big?"14px 0":"9px 0", borderBottom:localPos<ranking.length-1?`1px solid ${D.border}`:"none", background:D.goldDim+"33" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:big?16:10 }}>
+              <div style={{ width:big?36:24, height:big?36:24, borderRadius:"50%", background:D.goldDim, border:`1px solid ${D.gold}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:big?16:12, fontWeight:900, color:D.gold, flexShrink:0 }}>{pos+1}</div>
+              <div style={{ flex:1, minWidth:0, fontSize:big?20:13, fontStyle:"italic", color:D.textDim }}>Premio disponible — sin ganador aún</div>
+              <Trophy size={big?18:13} color={D.gold} style={{ marginRight:4, flexShrink:0, opacity:0.6 }}/>
+              <div style={{ fontSize:big?32:16, fontFamily:FONT_DISPLAY, fontWeight:700, color:D.textDim, minWidth:big?150:96, textAlign:"right", flexShrink:0 }}>—</div>
+            </div>
+            {premioNombre && <div style={{ marginLeft:big?(36+16):(24+10), marginTop:big?10:6, fontFamily:FONT_DISPLAY, fontSize:big?24:15, fontWeight:800, color:D.gold, textTransform:"uppercase", letterSpacing:0.5 }}>{premioNombre}</div>}
+          </div>
+        );
         return (
         <div key={e.jugadorId} className={esHoleInOne ? "h19-hio-row" : undefined} style={{ display:"flex", flexDirection:"column", padding:big?"14px 0":"9px 0", borderBottom:localPos<ranking.length-1?`1px solid ${D.border}`:"none", background:pos<premios?D.goldDim+"55":"transparent", borderRadius:esHoleInOne?10:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:big?16:10 }}>
@@ -2932,6 +2946,27 @@ function AdminTorneoApp({ onExit }) {
               );
             })()}
             <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Se puede cambiar en cualquier momento. El HC aplicado se recalcula solo: a 9 hoyos es el 50% (HC 10 → 5). Al pasar de 18 a 9 se pide confirmación si hay scores o grupos que se verían afectados.</div>
+          </Card>
+          <Card>
+            <SLabel>Pares de campo (solo este torneo)</SLabel>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:6 }}>
+              {torneo.pares.map((p, i) => {
+                const base = CAMPOS[torneo.campo]?.pares?.[i];
+                const cambiado = base !== undefined && base !== p;
+                const cambiarPar = (d) => { const v = Math.max(3, Math.min(6, p + d)); if (v !== p) set(ref(db, `torneos/${torneoId}/pares/${i}`), v); };
+                return (
+                  <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:4, padding:"6px 6px", border:`1px solid ${cambiado?D.gold:D.border}`, borderRadius:10, background:cambiado?D.goldDim:"transparent" }}>
+                    <button onClick={() => cambiarPar(-1)} style={{ width:26, height:26, borderRadius:"50%", border:`1px solid ${D.border}`, background:D.surface, color:D.text, cursor:"pointer", fontSize:15, lineHeight:1, padding:0 }}>−</button>
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:9, color:D.textSub }}>Hoyo {i+1}</div>
+                      <div style={{ fontSize:16, fontWeight:900, color:cambiado?D.gold:D.text }}>{p}</div>
+                    </div>
+                    <button onClick={() => cambiarPar(1)} style={{ width:26, height:26, borderRadius:"50%", border:`1px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:15, lineHeight:1, padding:0 }}>+</button>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Cambia el par solo en este torneo (el campo no se modifica). Los hoyos distintos al par original del campo se marcan en dorado. El vs Par se recalcula al instante.</div>
           </Card>
           <Card>
             <SLabel>{MODALIDADES[torneo.modalidad].label} · {torneo.pares.length} hoyos · HC {torneo.hcPercent}%</SLabel>
