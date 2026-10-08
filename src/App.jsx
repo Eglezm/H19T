@@ -1468,25 +1468,15 @@ function TeamPlayView({ codigo, onExit }) {
   const setScore = (delta) => {
     if (!marcoA) return;
     setPendingScore(prev => {
-      const base = prev[hole] !== undefined ? prev[hole] : (marcoA.scores?.[hole] ?? par);
-      const val = Math.max(1, base + delta);
+      const base = prev[hole] !== undefined ? prev[hole] : (marcoA.scores?.[hole] ?? null);
+      const val = base === null ? Math.max(1, delta > 0 ? par : par - 1) : Math.max(1, base + delta);
       set(ref(db, `torneos/${torneoId}/unidades/${miUnidad.marcaA}/scores/${hole}`), val);
       return { ...prev, [hole]: val };
     });
   };
 
-  // Si el hoyo actual se quedó sin capturar (el jugador hizo par y no tocó + / −),
-  // guarda el par de campo como su score antes de navegar a otro hoyo o pestaña.
-  const commitParSiFalta = () => {
-    if (!marcoA) return;
-    if (pendingScore[hole] !== undefined) return; // ya se tocó +/- para este hoyo, no hace falta el default
-    const current = marcoA.scores?.[hole];
-    if (current === null || current === undefined) {
-      set(ref(db, `torneos/${torneoId}/unidades/${miUnidad.marcaA}/scores/${hole}`), par);
-    }
-  };
-  const irAHoyo = (nuevaPos) => { commitParSiFalta(); setPosInOrder(nuevaPos); };
-  const cambiarTab = (k) => { commitParSiFalta(); setTab(k); };
+  const irAHoyo = (nuevaPos) => { setPosInOrder(nuevaPos); }; // saltar un hoyo NO guarda nada
+  const cambiarTab = (k) => { setTab(k); };
 
   const miScore = (miUnidad.scores || [])[hole];
   const suScore = pendingScore[hole] !== undefined ? pendingScore[hole] : (marcoA?.scores || [])[hole];
@@ -1535,14 +1525,15 @@ function TeamPlayView({ codigo, onExit }) {
                   <div style={{ fontSize:10, color:D.textDim, marginTop:2 }}>{posInOrder+1}/{pares.length} de la ronda</div>
                   {teeSt && <div style={{ display:"inline-block", marginTop:4, padding:"2px 8px", borderRadius:10, fontSize:9, fontWeight:700, background:teeSt.bg, color:teeSt.fg, border:`1px solid ${teeSt.border}` }}><Flag size={11} style={{display:"inline",verticalAlign:"-2px",marginRight:3}}/>Tee {tee}</div>}
                 </div>
-                <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} disabled={posInOrder===pares.length-1} style={{ width:36,height:36,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:posInOrder===pares.length-1?0.3:1 }}><ChevronRight size={18}/></button>
+                <div style={{ width:36, height:36 }} />
               </div>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
                 <button onClick={() => setScore(-1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.border}`,background:D.surface,color:D.text,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>−</button>
-                <div key={`suScore-${hole}-${suScore}`} style={{ width:60, textAlign:"center", fontSize:38, fontFamily:FONT_DISPLAY, fontWeight:700 }}><CountUp value={suScore ?? par} duration={280} /></div>
+                <div key={`suScore-${hole}-${suScore}`} style={{ width:60, textAlign:"center", fontSize:38, fontFamily:FONT_DISPLAY, fontWeight:700 }}><CountUp value={suScore ?? 0} duration={280} /></div>
                 <button onClick={() => setScore(1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
               </div>
-              <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:10 }}>{suScore===null||suScore===undefined ? "Aún no capturado (por defecto: par)" : "Capturado"}</div>
+              <div style={{ textAlign:"center", fontSize:13, fontWeight:700, marginTop:12, color:suScore==null?D.danger:D.success }}>{suScore==null ? "Sin anotar — toca + o − para registrar el score" : "✓ Score guardado"}</div>
+              <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} disabled={posInOrder===pares.length-1} style={{ width:"100%", marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:posInOrder===pares.length-1?0.35:1 }}>{posInOrder===pares.length-1 ? "Último hoyo" : <>Siguiente hoyo <ChevronRight size={30} strokeWidth={3}/></>}</button>
             </Card>
           )}
           {tab === "marcar" && !marcoA && (
@@ -1667,21 +1658,14 @@ function ScoreRecordView({ torneoId, onExit }) {
 
   const setScore = (delta) => {
     setPendingScore(prev => {
-      const base = prev[hole] !== undefined ? prev[hole] : (unidad.scores?.[hole] ?? par);
-      const val = Math.max(1, base + delta);
+      const base = prev[hole] !== undefined ? prev[hole] : (unidad.scores?.[hole] ?? null);
+      const val = base === null ? Math.max(1, delta > 0 ? par : par - 1) : Math.max(1, base + delta);
       set(ref(db, `torneos/${torneoId}/unidades/${unidadId}/scores/${hole}`), val);
       return { ...prev, [hole]: val };
     });
   };
-  const commitParSiFalta = () => {
-    if (pendingScore[hole] !== undefined) return;
-    const current = unidad.scores?.[hole];
-    if (current === null || current === undefined) {
-      set(ref(db, `torneos/${torneoId}/unidades/${unidadId}/scores/${hole}`), par);
-    }
-  };
-  const irAHoyo = (nuevaPos) => { commitParSiFalta(); setPosInOrder(nuevaPos); };
-  const cambiarTab = (k) => { commitParSiFalta(); setTab(k); };
+  const irAHoyo = (nuevaPos) => { setPosInOrder(nuevaPos); }; // saltar un hoyo NO guarda nada
+  const cambiarTab = (k) => { setTab(k); };
   const miScore = pendingScore[hole] !== undefined ? pendingScore[hole] : (unidad.scores || [])[hole];
 
   return (
@@ -1728,14 +1712,15 @@ function ScoreRecordView({ torneoId, onExit }) {
                   <div style={{ fontSize:10, color:D.textDim, marginTop:2 }}>{posInOrder+1}/{pares.length} de la ronda</div>
                   {teeSt && <div style={{ display:"inline-block", marginTop:4, padding:"2px 8px", borderRadius:10, fontSize:9, fontWeight:700, background:teeSt.bg, color:teeSt.fg, border:`1px solid ${teeSt.border}` }}><Flag size={11} style={{display:"inline",verticalAlign:"-2px",marginRight:3}}/>Tee {tee}</div>}
                 </div>
-                <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} disabled={posInOrder===pares.length-1} style={{ width:36,height:36,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:posInOrder===pares.length-1?0.3:1 }}><ChevronRight size={18}/></button>
+                <div style={{ width:36, height:36 }} />
               </div>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20 }}>
                 <button onClick={() => setScore(-1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.border}`,background:D.surface,color:D.text,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>−</button>
-                <div key={`miScore-${hole}-${miScore}`} style={{ width:60, textAlign:"center", fontSize:38, fontFamily:FONT_DISPLAY, fontWeight:700 }}><CountUp value={miScore ?? par} duration={280} /></div>
+                <div key={`miScore-${hole}-${miScore}`} style={{ width:60, textAlign:"center", fontSize:38, fontFamily:FONT_DISPLAY, fontWeight:700 }}><CountUp value={miScore ?? 0} duration={280} /></div>
                 <button onClick={() => setScore(1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
               </div>
-              <div style={{ textAlign:"center", fontSize:11, color:D.textDim, marginTop:10 }}>{miScore===null||miScore===undefined ? "Aún no capturado (por defecto: par)" : "Capturado"}</div>
+              <div style={{ textAlign:"center", fontSize:13, fontWeight:700, marginTop:12, color:miScore==null?D.danger:D.success }}>{miScore==null ? "Sin anotar — toca + o − para registrar el score" : "✓ Score guardado"}</div>
+              <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} disabled={posInOrder===pares.length-1} style={{ width:"100%", marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:posInOrder===pares.length-1?0.35:1 }}>{posInOrder===pares.length-1 ? "Último hoyo" : <>Siguiente hoyo <ChevronRight size={30} strokeWidth={3}/></>}</button>
             </Card>
           )}
           {tab === "pos" && (
