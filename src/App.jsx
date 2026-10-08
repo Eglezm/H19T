@@ -810,7 +810,7 @@ function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
 
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalTeams>PAGE_SIZE && <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}> · Primeros {PAGE_SIZE} de {totalTeams}</span>}</SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalTeams>PAGE_SIZE && <span style={{ fontWeight:700, color:"#000", textTransform:"none", letterSpacing:0 }}> : "Compitiendo por los primeros lugares"</span>}</SLabel>
       <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined}>
       {rows.map((u, localPos) => {
         const pos = startIdx + localPos;
