@@ -923,7 +923,7 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
               <th style={{ textAlign:"left", padding:big?"8px 10px":"4px 6px", color:D.textSub, position:"sticky", left:0, background:D.surface }}>Unidad</th>
               {pares.map((par, h) => {
                 const ts = teeStyle(teeColor(torneo.campo, h));
-                return <th key={h} style={{ padding:big?"8px 6px":"4px 4px", color:D.textDim, fontWeight:600, minWidth:big?42:28, background:ts?ts.bg:"transparent" }}>{h+1}</th>;
+                return <th key={h} style={{ padding:big?"8px 6px":"4px 4px", color:D.textDim, fontWeight:900, minWidth:big?42:28, background:ts?ts.bg:"transparent" }}>{h+1}</th>;
               })}
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>Total</th>
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700, borderLeft:`1px solid ${D.border}` }}>vs Par</th>
@@ -934,7 +934,7 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
               <td style={{ padding:big?"4px 10px":"2px 6px", color:D.textDim, fontSize:fs-1, position:"sticky", left:0, background:D.surface }}>Par</td>
               {pares.map((par, h) => {
                 const ts = teeStyle(teeColor(torneo.campo, h));
-                return <td key={h} style={{ textAlign:"center", padding:big?"4px 6px":"2px 4px", color:ts?ts.fg:D.textDim, fontSize:fs-1, background:ts?ts.bg:"transparent" }}>{par}</td>;
+                return <td key={h} style={{ textAlign:"center", padding:big?"4px 6px":"2px 4px", color:ts?ts.fg:D.textDim, fontSize:fs-1, fontWeight:900, background:ts?ts.bg:"transparent" }}>{par}</td>;
               })}
               <td style={{ textAlign:"center", padding:big?"4px 10px":"2px 6px", color:D.textDim, fontSize:fs-1, fontWeight:700 }}>{pares.reduce((a,b)=>a+b,0)}</td>
               <td style={{ borderLeft:`1px solid ${D.border}` }}></td>
