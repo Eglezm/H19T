@@ -1017,15 +1017,15 @@ function PremiosEspecialesPanel({ especiales, big }) {
   ].filter(Boolean);
   if (items.length === 0) return null;
   return (
-    <Card tv={big} style={big ? { padding:24 } : {}}>
+    <Card tv={big} style={big ? { padding:"16px 24px" } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><Sparkles size={14}/> Premios Especiales</SLabel>
-      <div style={{ display:"flex", flexDirection:"column", gap:big?16:10 }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:big?10:10 }}>
         {items.map(it => {
           const imgUrl = it.imagen ? getLogoUrl(it.imagen) : "";
           return (
-          <div key={it.key} className={it.ganador ? "h19-hio-row" : undefined} style={{ display:"flex", alignItems:"flex-start", gap:big?16:10, padding:big?"16px 18px":"10px 12px", borderRadius:12, background:D.achievementDim, border:`1px solid ${D.achievement}` }}>
+          <div key={it.key} className={it.ganador ? "h19-hio-row" : undefined} style={{ display:"flex", alignItems:"flex-start", gap:big?14:10, padding:big?"9px 16px":"10px 12px", borderRadius:12, background:D.achievementDim, border:`1px solid ${D.achievement}` }}>
             {imgUrl && (
-              <img src={imgUrl} alt="" style={{ width:big?84:52, height:big?84:52, objectFit:"cover", borderRadius:10, border:`1px solid ${D.achievement}`, background:"#fff", flexShrink:0 }} />
+              <img src={imgUrl} alt="" style={{ width:big?58:52, height:big?58:52, objectFit:"cover", borderRadius:10, border:`1px solid ${D.achievement}`, background:"#fff", flexShrink:0 }} />
             )}
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:big?15:12, fontWeight:700, color:D.achievement, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:it.ganador?8:0 }}>
