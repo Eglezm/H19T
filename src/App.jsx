@@ -1091,11 +1091,15 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
       </Card>
     );
   }
+  // Pantalla completa con una sola tarjeta de O'Yes + Premios Especiales: los especiales van en la
+  // primera pantalla junto con la mitad de los lugares, y el resto en la siguiente (reparto parejo).
+  const repartir = big && hayEspeciales && grupos.length === 1;
   return (
     <>
-      {hayEspeciales && <PremiosEspecialesPanel especiales={especiales} big={big} />}
+      {hayEspeciales && !repartir && <PremiosEspecialesPanel especiales={especiales} big={big} />}
       {grupos.map((g, gi) => (
-        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={(big && onCycleComplete) ? handleGroupComplete : undefined} />
+        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={(big && onCycleComplete) ? handleGroupComplete : undefined}
+          encabezado={repartir ? <PremiosEspecialesPanel especiales={especiales} big={big} /> : null} />
       ))}
     </>
   );
@@ -1103,7 +1107,7 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
 
 // Tarjeta de un grupo de O'Yes (un hoyo, o la clasificación general) — en pantalla completa
 // cicla de 6 en 6 jugadores, cambiando cada 5s.
-function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete }) {
+function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete, encabezado = null }) {
   const PAGE_SIZE = 6;
   // Pantalla completa: solo los primeros 12 (2 páginas de 6) — ahorra tiempo de ciclo.
   const rankingVista = big ? g.ranking.slice(0, 12) : g.ranking;
@@ -1112,11 +1116,17 @@ function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete }) {
   const filasVista = [...rankingVista, ...vacios];
   const totalPages = big ? Math.max(1, Math.ceil(filasVista.length / PAGE_SIZE)) : 1;
   const { page, phase } = usePagedTransition(big, totalPages, PANTALLA_MS, 420, onCycleComplete);
-  const startIdx = big ? page*PAGE_SIZE : 0;
-  const pageRanking = big ? filasVista.slice(startIdx, startIdx+PAGE_SIZE) : filasVista;
+  // Con Premios Especiales en la misma pantalla se reparten los lugares en partes iguales (10 → 5 y 5).
+  const porPagina = (big && encabezado) ? Math.ceil(filasVista.length / totalPages) : PAGE_SIZE;
+  const startIdx = big ? page*porPagina : 0;
+  const pageRanking = big ? filasVista.slice(startIdx, startIdx+porPagina) : filasVista;
   return (
+    <>
+    {big && encabezado && page === 0 && (
+      <div className={phase==="leaving" ? "h19-page-leave" : "h19-page-rise"}>{encabezado}</div>
+    )}
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, filasVista.length)} de ${filasVista.length}` : ""}</span></SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><Target size={14}/> {g.hole ? `O'Yes — Hoyo ${g.hole}` : "O'Yes — Clasificación general"} <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0 }}>· top {premios} premiados · {g.ranking.length} jugador{g.ranking.length!==1?"es":""} ({g.intentos} anotación{g.intentos!==1?"es":""} en total){big && totalPages>1 ? ` · ${startIdx+1}–${Math.min(startIdx+porPagina, filasVista.length)} de ${filasVista.length}` : ""}</span></SLabel>
       <OyesRankList key={page} ranking={pageRanking} startIndex={startIdx} premios={premios} premiosNombres={premiosNombres} big={big} rise={big ? (phase==="leaving"?"leave":"rise") : undefined} />
       {big && totalPages>1 && (
         <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:14 }}>
@@ -1126,6 +1136,7 @@ function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete }) {
         </div>
       )}
     </Card>
+    </>
   );
 }
 
