@@ -810,7 +810,7 @@ function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
 
   return (
     <Card tv={big} style={big ? { padding:24 } : {}}>
-      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalTeams>PAGE_SIZE && <span style={{ fontWeight:700, color:"#000", textTransform:"none", letterSpacing:0 }}> : "COMPITIENDO POR LOS PRIMEROS LUGARES"</span>}</SLabel>
+      <SLabel style={big ? { fontSize:16 } : {}}><ListOrdered size={14}/> Clasificación{big && totalTeams>PAGE_SIZE && <span style={{ fontWeight:700, color:"#000", textTransform:"none", letterSpacing:0 }}> : "Compitiendo por los primeros lugares"</span>}</SLabel>
       <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined}>
       {rows.map((u, localPos) => {
         const pos = startIdx + localPos;
@@ -1799,10 +1799,10 @@ function ScoreRecordView({ torneoId, onExit }) {
 }
 
 // ─── ANOTACIÓN DE O'YES (protegida por contraseña) ─
-function OyesRecordView({ torneoId, onExit }) {
+function OyesRecordView({ torneoId, onExit, admin = false }) {
   const [torneo, setTorneo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [autenticado, setAutenticado] = useState(false);
+  const [autenticado, setAutenticado] = useState(!!admin); // el administrador entra sin contraseña
   const [passInput, setPassInput] = useState("");
   const [passError, setPassError] = useState(false);
   const [jugadorId, setJugadorId] = useState("");
@@ -1822,7 +1822,7 @@ function OyesRecordView({ torneoId, onExit }) {
 
   if (loading) return <Spinner label="Conectando..." />;
   if (!torneo) return <Spinner label="Torneo no encontrado" />;
-  if (!torneo.oyes || !torneo.oyes.password) {
+  if (!admin && (!torneo.oyes || !torneo.oyes.password)) {
     return (
       <div style={{ ...appStyle, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, padding:24, textAlign:"center" }}>
         <Target size={32} color={D.gold}/>
@@ -1874,7 +1874,7 @@ function OyesRecordView({ torneoId, onExit }) {
       <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ fontFamily:FONT_DISPLAY, fontSize:21, fontWeight:700, color:D.gold, display:"flex", alignItems:"center", gap:8 }}><Target size={19}/> Anotar O'Yes</div>
-          <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
+          <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>{admin ? "Volver" : "Salir"}</button>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre}</div>
       </div>
@@ -2737,7 +2737,8 @@ function AdminTorneoApp({ onExit }) {
   const adminTabs = [
     {key:"unidades",icon:<User size={14}/>,label:"Unidades"},
     {key:"grupos",icon:<Link2 size={14}/>,label:"Grupos y códigos"},
-    {key:"captura",icon:<Pencil size={14}/>,label:"Capturar"},
+    {key:"captura",icon:<Pencil size={14}/>,label:"Capturar Score"},
+    {key:"capoyes",icon:<Target size={14}/>,label:"Capturar Oyes"},
     {key:"oyes",icon:<Target size={14}/>,label:"O'Yes"},
     {key:"logos",icon:<ImageIcon size={14}/>,label:"Logos"},
     {key:"imprimir",icon:<Printer size={14}/>,label:"Imprimir"},
@@ -3617,6 +3618,9 @@ function AdminTorneoApp({ onExit }) {
   }
 
   // ── CAPTURA / CORRECCIÓN DE SCORES (admin) ──
+  // Capturar Oyes (admin): solo anotar distancias — sin acceso a la configuración de O'Yes.
+  if (screen==="capoyes" && torneo) return <OyesRecordView torneoId={torneoId} admin onExit={() => setScreen("captura")} />;
+
   if (screen==="captura" && torneo) {
     const unidadesList = Object.values(torneo.unidades||{});
     const u = capturaUnidadId ? torneo.unidades[capturaUnidadId] : null;
