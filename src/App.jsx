@@ -899,6 +899,7 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
   const startIdx = big ? page*PAGE_SIZE : 0;
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const pares = torneo.pares;
+  const sinHc = !(Number(torneo.hcPercent) > 0); // con HC 0% no hay columnas de HP ni vs Par −HP
   const fs = big ? 20 : 11;
   // Pantalla completa con la tarjeta sola: la tarjeta ocupa todo el alto disponible y las filas se
   // reparten ese espacio (en vez de dejar un hueco entre la tarjeta y la franja de patrocinadores).
@@ -907,15 +908,15 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
     <Card tv={big} style={big ? { padding:24, ...(estirar ? { minHeight:"calc(var(--tv-avail, 0px) - 12px)", display:"flex", flexDirection:"column", boxSizing:"border-box" } : {}) } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida{big && totalPages>1 ? ` · Equipos ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, allRows.length)} de ${allRows.length}` : ""}</span></SLabel>
       <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined} style={{ overflowX:big?"hidden":"auto", ...(estirar ? { flex:"1 1 auto", display:"flex", flexDirection:"column" } : {}) }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, ...(big ? { tableLayout:"fixed" } : { minWidth:pares.length*32+90 }), ...(estirar ? { flex:"1 1 auto", height:"100%" } : {}) }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, ...(big ? { tableLayout:"fixed" } : { minWidth:pares.length*32+90-(sinHc?40:0) }), ...(estirar ? { flex:"1 1 auto", height:"100%" } : {}) }}>
           {big && (
             <colgroup>
               <col style={{ width:290 }} />
               {pares.map((_, h) => <col key={h} />)}
               <col style={{ width:100 }} />
               <col style={{ width:100 }} />
-              <col style={{ width:80 }} />
-              <col style={{ width:120 }} />
+              {!sinHc && <col style={{ width:80 }} />}
+              {!sinHc && <col style={{ width:120 }} />}
             </colgroup>
           )}
           <thead>
@@ -927,8 +928,8 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
               })}
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>Total</th>
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700, borderLeft:`1px solid ${D.border}` }}>vs Par</th>
-              <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>HP</th>
-              <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>vs Par −HP</th>
+              {!sinHc && <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>HP</th>}
+              {!sinHc && <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>vs Par −HP</th>}
             </tr>
             <tr>
               <td style={{ padding:big?"4px 10px":"2px 6px", color:D.textDim, fontSize:fs-1, position:"sticky", left:0, background:D.surface }}>Par</td>
@@ -938,8 +939,8 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
               })}
               <td style={{ textAlign:"center", padding:big?"4px 10px":"2px 6px", color:D.textDim, fontSize:fs-1, fontWeight:700 }}>{pares.reduce((a,b)=>a+b,0)}</td>
               <td style={{ borderLeft:`1px solid ${D.border}` }}></td>
-              <td></td>
-              <td></td>
+              {!sinHc && <td></td>}
+              {!sinHc && <td></td>}
             </tr>
           </thead>
           <tbody>
@@ -973,8 +974,8 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
                 })}
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontFamily:FONT_DISPLAY, fontSize:big?28:"inherit", fontWeight:700, color:D.gold }}><CountUp value={u.brutoReal} /></td>
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsPar), borderLeft:`1px solid ${D.border}` }}>{fmtVsPar(u.vsPar)}</td>
-                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:700, color:D.textSub }}>{u.hcAplicado}</td>
-                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>
+                {!sinHc && <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:700, color:D.textSub }}>{u.hcAplicado}</td>}
+                {!sinHc && <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>}
               </tr>
               );
             })}
