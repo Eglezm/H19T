@@ -1848,7 +1848,13 @@ function OyesRecordView({ torneoId, onExit, admin = false }) {
   }
 
   const opcionesHoyo = opcionesHoyoOyes(torneo);
-  const jugadores = todosLosJugadores(torneo).filter(j => j.name.toLowerCase().includes(busqueda.toLowerCase()));
+  // Búsqueda: solo dígitos (1, 2, 10...) = número de equipo exacto; texto = nombre del jugador o del equipo.
+  const qBusq = busqueda.trim().toLowerCase();
+  const jugadores = todosLosJugadores(torneo).filter(j => {
+    if (!qBusq) return true;
+    if (/^\d+$/.test(qBusq)) return j.unidadId === `U${parseInt(qBusq, 10)}`;
+    return j.name.toLowerCase().includes(qBusq) || (j.unidadNombre||"").toLowerCase().includes(qBusq);
+  });
   const entradas = Object.entries(torneo.oyesEntradas || {}).sort((a,b) => {
     if (sortBy==="distancia") return a[1].cm - b[1].cm;
     if (sortBy==="jugador") return a[1].jugadorNombre.localeCompare(b[1].jugadorNombre) || a[1].cm - b[1].cm;
@@ -1883,13 +1889,13 @@ function OyesRecordView({ torneoId, onExit, admin = false }) {
         <Card>
           <SLabel>Nueva anotación</SLabel>
           <div style={{ fontSize:11, color:D.textSub, marginBottom:6 }}>Jugador</div>
-          <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar jugador..." style={{ width:"100%", padding:"9px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box", marginBottom:8 }} />
+          <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar por nombre o número de equipo (1, 2, 10...)" style={{ width:"100%", padding:"9px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box", marginBottom:8 }} />
           <div style={{ maxHeight:160, overflowY:"auto", border:`1px solid ${D.border}`, borderRadius:10, marginBottom:12 }}>
             {jugadores.map(j => (
               <div key={j.id} onClick={() => setJugadorId(String(j.id))} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:String(jugadorId)===String(j.id)?D.goldDim:"transparent", cursor:"pointer", borderBottom:`1px solid ${D.border}` }}>
                 <Avatar name={j.name} id={j.id} size={24} />
                 <div style={{ flex:1, fontSize:13, fontWeight:600 }}>{j.name}</div>
-                <div style={{ fontSize:10, color:D.textSub }}>{j.unidadNombre}</div>
+                <div style={{ fontSize:10, color:D.textSub }}>{/^U\d+$/.test(String(j.unidadId)) ? `#${String(j.unidadId).slice(1)} · ` : ""}{j.unidadNombre}</div>
               </div>
             ))}
             {jugadores.length===0 && <div style={{ padding:12, textAlign:"center", color:D.textSub, fontSize:12 }}>Sin resultados</div>}
