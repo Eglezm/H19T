@@ -1443,6 +1443,40 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
 }
 
 // ─── VISTA DE EQUIPO (acceso por código) ──────────
+// Último hoyo de la ronda: nota + botón "Terminar". Solo deja terminar si ya hay score en TODOS los
+// hoyos; si faltan, avisa cuáles. Guarda la marca en la unidad (terminado) y se puede reabrir.
+function BloqueUltimoHoyo({ torneoId, unidadObj, pares, pendingScore, holeOrder }) {
+  const [faltan, setFaltan] = useState(null);
+  const ruta = `torneos/${torneoId}/unidades/${unidadObj.id}`;
+  const scoreDe = (h) => (pendingScore[h] !== undefined ? pendingScore[h] : unidadObj.scores?.[h]);
+  if (unidadObj.terminado) {
+    return (
+      <div style={{ marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.success}`, background:D.greenBg, textAlign:"center" }}>
+        <div style={{ fontSize:19, fontWeight:900, color:D.success, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><Check size={26} strokeWidth={3}/> Ronda terminada</div>
+        <div style={{ fontSize:12, color:D.textSub, marginTop:4 }}>Tus scores quedaron registrados. ¡Gracias!</div>
+        <button onClick={() => set(ref(db, `${ruta}/terminado`), null)} style={{ marginTop:10, padding:"6px 14px", border:`1px solid ${D.border}`, borderRadius:20, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Reabrir para corregir</button>
+      </div>
+    );
+  }
+  const terminar = () => {
+    const sinScore = holeOrder.filter(h => { const v = scoreDe(h); return v === null || v === undefined; }).map(h => h + 1);
+    if (sinScore.length > 0) { setFaltan(sinScore); return; }
+    setFaltan(null);
+    set(ref(db, `${ruta}/terminado`), true);
+  };
+  return (
+    <div style={{ marginTop:14 }}>
+      <div style={{ padding:"10px 12px", borderRadius:12, background:D.goldDim, border:`1px solid ${D.gold}`, color:D.gold, fontSize:15, fontWeight:900, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><Flag size={18}/> Último hoyo por jugar</div>
+      {faltan && (
+        <div style={{ marginTop:10, padding:"10px 12px", borderRadius:12, background:D.redBg, border:`1px solid ${D.danger}`, color:D.danger, fontSize:13, fontWeight:700, textAlign:"center" }}>
+          Aún faltan por anotar: hoyo{faltan.length>1?"s":""} {faltan.join(", ")}. Regresa con la flecha ‹ y anota el score.
+        </div>
+      )}
+      <button onClick={terminar} style={{ width:"100%", marginTop:10, padding:"16px 12px", borderRadius:14, border:"none", background:D.success, color:"#fff", cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><Check size={26} strokeWidth={3}/> Terminar</button>
+    </div>
+  );
+}
+
 function TeamPlayView({ codigo, onExit }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1561,7 +1595,7 @@ function TeamPlayView({ codigo, onExit }) {
                 <button onClick={() => setScore(1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
               </div>
               <div style={{ textAlign:"center", fontSize:13, fontWeight:700, marginTop:12, color:suScore==null?D.danger:D.success }}>{suScore==null ? "Sin anotar — toca + o − para registrar el score" : "✓ Score guardado"}</div>
-              <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} disabled={posInOrder===pares.length-1} style={{ width:"100%", marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:posInOrder===pares.length-1?0.35:1 }}>{posInOrder===pares.length-1 ? "Último hoyo" : <>Siguiente hoyo <ChevronRight size={30} strokeWidth={3}/></>}</button>
+              {posInOrder===pares.length-1 ? <BloqueUltimoHoyo torneoId={torneoId} unidadObj={marcoA} pares={pares} pendingScore={pendingScore} holeOrder={holeOrder} /> : <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} style={{ width:"100%", marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:posInOrder===pares.length-1?0.35:1 }}><>Siguiente hoyo <ChevronRight size={30} strokeWidth={3}/></></button>}
             </Card>
           )}
           {tab === "marcar" && !marcoA && (
@@ -1748,7 +1782,7 @@ function ScoreRecordView({ torneoId, onExit }) {
                 <button onClick={() => setScore(1)} style={{ width:52,height:52,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:28,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
               </div>
               <div style={{ textAlign:"center", fontSize:13, fontWeight:700, marginTop:12, color:miScore==null?D.danger:D.success }}>{miScore==null ? "Sin anotar — toca + o − para registrar el score" : "✓ Score guardado"}</div>
-              <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} disabled={posInOrder===pares.length-1} style={{ width:"100%", marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:posInOrder===pares.length-1?0.35:1 }}>{posInOrder===pares.length-1 ? "Último hoyo" : <>Siguiente hoyo <ChevronRight size={30} strokeWidth={3}/></>}</button>
+              {posInOrder===pares.length-1 ? <BloqueUltimoHoyo torneoId={torneoId} unidadObj={unidad} pares={pares} pendingScore={pendingScore} holeOrder={holeOrder} /> : <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} style={{ width:"100%", marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:posInOrder===pares.length-1?0.35:1 }}><>Siguiente hoyo <ChevronRight size={30} strokeWidth={3}/></></button>}
             </Card>
           )}
           {tab === "pos" && (
