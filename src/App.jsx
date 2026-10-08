@@ -1099,7 +1099,7 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
       {hayEspeciales && !repartir && <PremiosEspecialesPanel especiales={especiales} big={big} />}
       {grupos.map((g, gi) => (
         <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={(big && onCycleComplete) ? handleGroupComplete : undefined}
-          encabezado={repartir ? <PremiosEspecialesPanel especiales={especiales} big={big} /> : null} />
+          encabezado={repartir ? <PremiosEspecialesPanel especiales={especiales} big={big} /> : null} nEncabezado={Object.keys(especiales).length} />
       ))}
     </>
   );
@@ -1107,18 +1107,20 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
 
 // Tarjeta de un grupo de O'Yes (un hoyo, o la clasificación general) — en pantalla completa
 // cicla de 6 en 6 jugadores, cambiando cada 5s.
-function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete, encabezado = null }) {
+function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete, encabezado = null, nEncabezado = 0 }) {
   const PAGE_SIZE = 6;
   // Pantalla completa: solo los primeros 12 (2 páginas de 6) — ahorra tiempo de ciclo.
   const rankingVista = big ? g.ranking.slice(0, 12) : g.ranking;
   // Lugares premiados que aún no tienen ganador: se muestran como filas vacías con su premio.
   const vacios = Array.from({ length: Math.max(0, Math.min(premios, big ? 12 : premios) - rankingVista.length) }, (_, i) => ({ vacio:true, jugadorId:`vacio-${rankingVista.length+i}` }));
   const filasVista = [...rankingVista, ...vacios];
-  const totalPages = big ? Math.max(1, Math.ceil(filasVista.length / PAGE_SIZE)) : 1;
+  // Con Premios Especiales en la misma pantalla, cada especial ocupa un renglón de la primera página
+  // (2 especiales + 4 lugares = 6); las siguientes páginas llevan 6 lugares.
+  const primera = (big && encabezado) ? Math.max(1, PAGE_SIZE - nEncabezado) : PAGE_SIZE;
+  const totalPages = big ? (filasVista.length <= primera ? 1 : 1 + Math.ceil((filasVista.length - primera) / PAGE_SIZE)) : 1;
   const { page, phase } = usePagedTransition(big, totalPages, PANTALLA_MS, 420, onCycleComplete);
-  // Con Premios Especiales en la misma pantalla se reparten los lugares en partes iguales (10 → 5 y 5).
-  const porPagina = (big && encabezado) ? Math.ceil(filasVista.length / totalPages) : PAGE_SIZE;
-  const startIdx = big ? page*porPagina : 0;
+  const porPagina = page === 0 ? primera : PAGE_SIZE;
+  const startIdx = big ? (page === 0 ? 0 : primera + (page-1)*PAGE_SIZE) : 0;
   const pageRanking = big ? filasVista.slice(startIdx, startIdx+porPagina) : filasVista;
   return (
     <>
