@@ -1448,6 +1448,62 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo", onExit }) {
 }
 
 // ─── VISTA DE EQUIPO (acceso por código) ──────────
+// ─── AYUDA / TUTORIAL (solo con el botón, nunca automático) ─────────────────
+const TUTORIALES = {
+  score: { titulo:"Cómo anotar el score", pasos:[
+    { t:"Tu pantalla de anotación", d:"Arriba ves a quién le anotas. Todo lo que captures se guarda al instante y lo ve el torneo en vivo.", m:"Anotas para: Equipo 3" },
+    { t:"Hoyo y par", d:"En el centro ves el número de hoyo y su PAR. Empiezas en tu hoyo de salida y la ronda da la vuelta completa.", m:"Hoyo 1 · PAR 4" },
+    { t:"Registra los golpes", d:"El marcador empieza en 0. Toca + o − para anotar los golpes (el primer toque pone el par). Si no tocas nada, el hoyo queda SIN anotar.", m:"−   4   +" },
+    { t:"Siguiente hoyo", d:"Cuando termines un hoyo toca el botón grande «Siguiente hoyo». Si te equivocas de hoyo, usa la flecha ‹ de arriba para regresar y corregir.", m:"Siguiente hoyo ➜" },
+    { t:"Último hoyo: Terminar", d:"En el último hoyo aparece «Último hoyo por jugar» y el botón Terminar. Presiónalo al acabar la ronda. Si falta algún hoyo por anotar, la app te dice cuál.", m:"✓ Terminar" },
+  ]},
+  oyes: { titulo:"Cómo anotar un O'Yes", pasos:[
+    { t:"Busca al jugador", d:"Escribe las primeras letras del nombre, o el número de equipo (1, 2, 10...) para ver solo a ese equipo.", m:"Buscar: 12" },
+    { t:"Elige al jugador", d:"Toca su nombre en la lista. Se marca en dorado cuando está seleccionado.", m:"Juan Pérez · #12" },
+    { t:"Elige el hoyo", d:"Toca el hoyo donde se hizo la anotación.", m:"Hoyo 5" },
+    { t:"Distancia", d:"Escribe la distancia a la bandera en centímetros. Si fue un Hole in One, marca la casilla «Hole in One» (se guarda como 0.00 cm).", m:"245 cm  ·  ☑ Hole in One" },
+    { t:"Guarda", d:"Toca «Guardar anotación». Abajo aparece en la lista de todas las anotaciones, donde puedes revisarlas o borrar una si te equivocaste.", m:"Guardar anotación" },
+  ]},
+};
+
+function AyudaTutorial({ tipo }) {
+  const [abierto, setAbierto] = useState(false);
+  const [paso, setPaso] = useState(0);
+  const tut = TUTORIALES[tipo];
+  if (!tut) return null;
+  const n = tut.pasos.length;
+  const p = tut.pasos[paso];
+  const cerrar = () => { setAbierto(false); setPaso(0); };
+  return (
+    <>
+      <button onClick={() => setAbierto(true)} style={{ fontSize:11, fontWeight:700, color:D.gold, background:D.goldDim, border:`1px solid ${D.gold}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>? Ayuda</button>
+      {abierto && (
+        <div onClick={cerrar} style={{ position:"fixed", inset:0, zIndex:1000, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:380, background:"#fff", borderRadius:18, padding:20, boxShadow:"0 12px 40px rgba(0,0,0,0.25)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <div style={{ fontSize:12, fontWeight:800, color:D.gold, textTransform:"uppercase", letterSpacing:"0.06em" }}>{tut.titulo}</div>
+              <button onClick={cerrar} style={{ border:"none", background:"none", color:D.textSub, fontSize:20, lineHeight:1, cursor:"pointer", padding:2 }}>×</button>
+            </div>
+            <div style={{ fontSize:11, color:D.textDim, marginBottom:4 }}>Paso {paso+1} de {n}</div>
+            <div style={{ fontSize:20, fontWeight:900, marginBottom:8 }}>{p.t}</div>
+            <div style={{ padding:"14px 12px", borderRadius:12, background:D.goldDim, border:`1px solid ${D.gold}`, textAlign:"center", fontFamily:FONT_DISPLAY, fontSize:22, fontWeight:700, color:D.gold, marginBottom:10 }}>{p.m}</div>
+            <div style={{ fontSize:14, lineHeight:1.45, color:D.text, minHeight:84 }}>{p.d}</div>
+            <div style={{ display:"flex", justifyContent:"center", gap:6, margin:"12px 0" }}>
+              {tut.pasos.map((_, i) => <div key={i} style={{ width:i===paso?18:7, height:7, borderRadius:4, background:i===paso?D.gold:D.border }} />)}
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => setPaso(x => Math.max(0, x-1))} disabled={paso===0} style={{ flex:1, padding:12, border:`1px solid ${D.border}`, borderRadius:12, background:"transparent", color:D.textSub, fontSize:14, fontWeight:700, cursor:"pointer", opacity:paso===0?0.35:1 }}>Anterior</button>
+              {paso < n-1
+                ? <button onClick={() => setPaso(x => x+1)} style={{ flex:1, padding:12, border:"none", borderRadius:12, background:D.gold, color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>Siguiente</button>
+                : <button onClick={cerrar} style={{ flex:1, padding:12, border:"none", borderRadius:12, background:D.success, color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>Entendido</button>}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // Último hoyo de la ronda: nota + botón "Terminar". Solo deja terminar si ya hay score en TODOS los
 // hoyos; si faltan, avisa cuáles. Guarda la marca en la unidad (terminado) y se puede reabrir.
 function BloqueUltimoHoyo({ torneoId, unidadObj, pares, pendingScore, holeOrder }) {
@@ -1556,7 +1612,7 @@ function TeamPlayView({ codigo, onExit }) {
             <AppLogo fontSize={23} />
             <EncabezadoLogos torneo={torneo} height={32} side="campo" />
           </div>
-          <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}><AyudaTutorial tipo="score" /><button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button></div>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre} · {campoNombre}</div>
       </div>
@@ -1743,7 +1799,7 @@ function ScoreRecordView({ torneoId, onExit }) {
             <AppLogo fontSize={23} />
             <EncabezadoLogos torneo={torneo} height={32} side="campo" />
           </div>
-          <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button>
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}><AyudaTutorial tipo="score" /><button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>Salir</button></div>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre} · {campoNombre}</div>
       </div>
@@ -1885,7 +1941,7 @@ function OyesRecordView({ torneoId, onExit, admin = false }) {
       <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:"14px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ fontFamily:FONT_DISPLAY, fontSize:21, fontWeight:700, color:D.gold, display:"flex", alignItems:"center", gap:8 }}><Target size={19}/> Anotar O'Yes</div>
-          <button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>{admin ? "Volver" : "Salir"}</button>
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}><AyudaTutorial tipo="oyes" /><button onClick={onExit} style={{ fontSize:11, color:D.textSub, background:"none", border:`1px solid ${D.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>{admin ? "Volver" : "Salir"}</button></div>
         </div>
         <div style={{ fontSize:12, color:D.textSub, marginTop:2 }}>{torneo.nombre}</div>
       </div>
