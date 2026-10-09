@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState, useEffect, useRef, useLayoutEffect, createContext, useContext } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, remove, get } from "firebase/database";
@@ -1467,6 +1468,8 @@ const TUTORIALES = {
 };
 
 function AyudaTutorial({ tipo }) {
+  // El encabezado de la app usa backdrop-filter, que "atrapa" a los hijos con position:fixed; por eso la
+  // ventana se dibuja en document.body (portal) para que cubra toda la pantalla.
   const [abierto, setAbierto] = useState(false);
   const [paso, setPaso] = useState(0);
   const tut = TUTORIALES[tipo];
@@ -1477,7 +1480,7 @@ function AyudaTutorial({ tipo }) {
   return (
     <>
       <button onClick={() => setAbierto(true)} style={{ fontSize:11, fontWeight:700, color:D.gold, background:D.goldDim, border:`1px solid ${D.gold}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}>? Ayuda</button>
-      {abierto && (
+      {abierto && createPortal(
         <div onClick={cerrar} style={{ position:"fixed", inset:0, zIndex:1000, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
           <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:380, background:"#fff", borderRadius:18, padding:20, boxShadow:"0 12px 40px rgba(0,0,0,0.25)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
@@ -1498,7 +1501,8 @@ function AyudaTutorial({ tipo }) {
                 : <button onClick={cerrar} style={{ flex:1, padding:12, border:"none", borderRadius:12, background:D.success, color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer" }}>Entendido</button>}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
