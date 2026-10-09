@@ -402,7 +402,17 @@ function buildChain(ids) {
   return chain;
 }
 
-function calcTotales(unidad, pares) {
+// Ventajas manuales (+/- golpes por unidad): independientes del HC oficial. Solo se activan cuando el
+// torneo lo permite Y el HC es 0% (así nunca se mezclan ni se aplican dos veces con el hándicap).
+function ventajasActivas(torneo) {
+  return torneo?.ventajasManuales === true && !(Number(torneo.hcPercent) > 0);
+}
+function fmtVentaja(n) {
+  const v = Number.isInteger(n) ? n : 0;
+  return v > 0 ? `+${v}` : v < 0 ? `-${Math.abs(v)}` : "0";
+}
+
+function calcTotales(unidad, pares, ventajaOn = false) {
   const scores = unidad.scores || [];
   let jugados = 0, brutoReal = 0, parJugado = 0;
   pares.forEach((par, i) => {
@@ -413,10 +423,12 @@ function calcTotales(unidad, pares) {
     }
   });
   const hcAplicado = unidad.hcAplicado || 0;
-  const neto = brutoReal - hcAplicado;
+  // Ventaja manual: se suma UNA sola vez al total de la ronda (nunca por hoyo); el bruto no se toca.
+  const ventaja = (ventajaOn && Number.isInteger(unidad.ventaja)) ? unidad.ventaja : 0;
+  const neto = brutoReal - hcAplicado + ventaja;   // con ventajas activas = TOTAL AJUSTADO
   const vsPar = brutoReal - parJugado;       // cómo van contra par, sin considerar HP
-  const vsParHc = vsPar - hcAplicado;        // lo mismo, restando el HP
-  return { jugados, brutoReal, hcAplicado, neto, parJugado, vsPar, vsParHc };
+  const vsParHc = vsPar - hcAplicado + ventaja;        // lo mismo, restando el HP (y aplicando la ventaja)
+  return { jugados, brutoReal, hcAplicado, neto, parJugado, vsPar, vsParHc, ventaja };
 }
 
 function fmtVsPar(n) {
@@ -473,7 +485,7 @@ function compararDesempateScore(a, b, pares) {
 function leaderboard(torneo) {
   if (!torneo || !torneo.unidades || !torneo.pares) return [];
   return Object.values(torneo.unidades)
-    .map(u => ({ ...u, ...calcTotales(u, torneo.pares) }))
+    .map(u => ({ ...u, ...calcTotales(u, torneo.pares, ventajasActivas(torneo)) }))
     .sort((a,b) => a.vsParHc - b.vsParHc || compararDesempateScore(a, b, torneo.pares));
 }
 
@@ -871,7 +883,7 @@ function TablaPosiciones({ torneo, highlightId, big, onCycleComplete }) {
             </div>
             <div style={{ textAlign:"right", flexShrink:0 }}>
               <div style={{ fontSize:top3?r.score:fs.sub+6, fontWeight:900, lineHeight:1, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</div>
-              <div style={{ fontSize:top3?(big?10:8):fs.sub, color:D.textDim, whiteSpace:"nowrap", marginTop:top3?3:0 }}>{u.brutoReal} − {u.hcAplicado}</div>
+              <div style={{ fontSize:top3?(big?10:8):fs.sub, color:D.textDim, whiteSpace:"nowrap", marginTop:top3?3:0 }}>{ventajasActivas(torneo) ? `${u.brutoReal} · Ventaja ${fmtVentaja(u.ventaja)}` : `${u.brutoReal} − ${u.hcAplicado}`}</div>
               <div style={{ fontFamily:FONT_DISPLAY, fontSize:top3?r.total:fs.total, fontWeight:700, color:D.text, marginTop:2 }}><CountUp value={u.neto} /></div>
               <div style={{ fontSize:top3?(big?9:7.5):fs.small, color:D.textSub, textTransform:top3?"uppercase":"none", letterSpacing:top3?"0.06em":0, fontWeight:top3?600:400 }}>Total</div>
             </div>
@@ -901,6 +913,7 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
   const rows = big ? allRows.slice(startIdx, startIdx+PAGE_SIZE) : allRows;
   const pares = torneo.pares;
   const sinHc = !(Number(torneo.hcPercent) > 0); // con HC 0% no hay columnas de HP ni vs Par −HP
+  const conVent = ventajasActivas(torneo); // columnas Total / Ventaja / Total ajustado / vs Par
   const fs = big ? 20 : 11;
   // Pantalla completa con la tarjeta sola: la tarjeta ocupa todo el alto disponible y las filas se
   // reparten ese espacio (en vez de dejar un hueco entre la tarjeta y la franja de patrocinadores).
@@ -909,13 +922,15 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
     <Card tv={big} style={big ? { padding:24, ...(estirar ? { minHeight:"calc(var(--tv-avail, 0px) - 12px)", display:"flex", flexDirection:"column", boxSizing:"border-box" } : {}) } : {}}>
       <SLabel style={big ? { fontSize:16 } : {}}><ClipboardList size={14}/> Tarjeta hoyo por hoyo <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, display:"inline-flex", alignItems:"center", gap:3 }}>· <Star size={11}/> = hoyo de salida{big && totalPages>1 ? ` · Equipos ${startIdx+1}–${Math.min(startIdx+PAGE_SIZE, allRows.length)} de ${allRows.length}` : ""}</span></SLabel>
       <div key={page} className={big ? (phase==="leaving"?"h19-page-leave":"h19-page-rise") : undefined} style={{ overflowX:big?"hidden":"auto", ...(estirar ? { flex:"1 1 auto", display:"flex", flexDirection:"column" } : {}) }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, ...(big ? { tableLayout:"fixed" } : { minWidth:pares.length*32+90-(sinHc?40:0) }), ...(estirar ? { flex:"1 1 auto", height:"100%" } : {}) }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:fs, ...(big ? { tableLayout:"fixed" } : { minWidth:pares.length*32+90-(sinHc?40:0)+(conVent?40:0) }), ...(estirar ? { flex:"1 1 auto", height:"100%" } : {}) }}>
           {big && (
             <colgroup>
               <col style={{ width:290 }} />
               {pares.map((_, h) => <col key={h} />)}
               <col style={{ width:100 }} />
               <col style={{ width:100 }} />
+              {conVent && <col style={{ width:110 }} />}
+              {conVent && <col style={{ width:100 }} />}
               {!sinHc && <col style={{ width:80 }} />}
               {!sinHc && <col style={{ width:120 }} />}
             </colgroup>
@@ -928,7 +943,13 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
                 return <th key={h} style={{ padding:big?"8px 6px":"4px 4px", color:ts?ts.fg:D.text, fontWeight:900, minWidth:big?42:28, background:ts?ts.bg:"transparent" }}>{h+1}</th>;
               })}
               <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>Total</th>
-              <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700, borderLeft:`1px solid ${D.border}` }}>vs Par</th>
+              {conVent
+                ? <>
+                    <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700, borderLeft:`1px solid ${D.border}` }}>Ventaja</th>
+                    <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>Total Aj.</th>
+                    <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>vs Par</th>
+                  </>
+                : <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700, borderLeft:`1px solid ${D.border}` }}>vs Par</th>}
               {!sinHc && <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>HP</th>}
               {!sinHc && <th style={{ padding:big?"8px 10px":"4px 6px", color:D.gold, fontWeight:700 }}>vs Par −HP</th>}
             </tr>
@@ -940,6 +961,8 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
               })}
               <td style={{ textAlign:"center", padding:big?"4px 10px":"2px 6px", color:D.textDim, fontSize:fs-1, fontWeight:700 }}>{pares.reduce((a,b)=>a+b,0)}</td>
               <td style={{ borderLeft:`1px solid ${D.border}` }}></td>
+              {conVent && <td></td>}
+              {conVent && <td></td>}
               {!sinHc && <td></td>}
               {!sinHc && <td></td>}
             </tr>
@@ -974,7 +997,13 @@ function TarjetaHoyoPorHoyo({ torneo, big, onCycleComplete, fill }) {
                   );
                 })}
                 <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontFamily:FONT_DISPLAY, fontSize:big?28:"inherit", fontWeight:700, color:D.gold }}><CountUp value={u.brutoReal} /></td>
-                <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsPar), borderLeft:`1px solid ${D.border}` }}>{fmtVsPar(u.vsPar)}</td>
+                {conVent
+                  ? <>
+                      <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:D.textSub, borderLeft:`1px solid ${D.border}` }}>{fmtVentaja(u.ventaja)}</td>
+                      <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontFamily:FONT_DISPLAY, fontSize:big?28:"inherit", fontWeight:700, color:D.text }}><CountUp value={u.neto} /></td>
+                      <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>
+                    </>
+                  : <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsPar), borderLeft:`1px solid ${D.border}` }}>{fmtVsPar(u.vsPar)}</td>}
                 {!sinHc && <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontWeight:700, color:D.textSub }}>{u.hcAplicado}</td>}
                 {!sinHc && <td style={{ textAlign:"center", padding:big?"8px 10px":"5px 6px", fontSize:big?24:"inherit", fontWeight:900, color:colorVsPar(u.vsParHc) }}>{fmtVsPar(u.vsParHc)}</td>}
               </tr>
@@ -2752,7 +2781,8 @@ function AdminTorneoApp({ onExit }) {
       hcPercent: torneo.hcPercent, fechaTs: Date.now(), fecha: fechaStr,
       pares: torneo.pares,
       ganador: rows[0]?.nombre || "—", netoGanador: rows[0]?.neto ?? null,
-      unidades: rows.map(u => ({ id:u.id, nombre:u.nombre, jugadores:u.jugadores, hcAplicado:u.hcAplicado, neto:u.neto, brutoReal:u.brutoReal, scores:u.scores })),
+      ventajasManuales: ventajasActivas(torneo),
+      unidades: rows.map(u => ({ id:u.id, nombre:u.nombre, jugadores:u.jugadores, hcAplicado:u.hcAplicado, neto:u.neto, brutoReal:u.brutoReal, ventaja:u.ventaja || 0, scores:u.scores })),
     };
     set(ref(db, `torneoHistorial/${torneoId}`), histData);
     set(ref(db, `torneos/${torneoId}/status`), "finalizada");
@@ -3066,6 +3096,38 @@ function AdminTorneoApp({ onExit }) {
               );
             })()}
             <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Se puede cambiar en cualquier momento. El HC aplicado se recalcula solo: a 9 hoyos es el 50% (HC 10 → 5). Al pasar de 18 a 9 se pide confirmación si hay scores o grupos que se verían afectados.</div>
+          </Card>
+          <Card>
+            <SLabel>Ventajas manuales por jugador o equipo</SLabel>
+            {Number(torneo.hcPercent) > 0 ? (
+              <div style={{ fontSize:12, color:D.textSub }}>Solo disponible en torneos con HC 0%. Este torneo usa HC {torneo.hcPercent}%, así que las ventajas manuales no se pueden combinar con el hándicap oficial.</div>
+            ) : (
+              <>
+                <button onClick={() => set(ref(db, `torneos/${torneoId}/ventajasManuales`), !torneo.ventajasManuales)}
+                  style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"10px 12px", border:`1px solid ${torneo.ventajasManuales?D.gold:D.border}`, borderRadius:10, background:torneo.ventajasManuales?D.goldDim:"transparent", color:torneo.ventajasManuales?D.gold:D.textSub, fontSize:13, fontWeight:700, cursor:"pointer", textAlign:"left" }}>
+                  <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${torneo.ventajasManuales?D.gold:D.border}`, background:torneo.ventajasManuales?D.gold:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{torneo.ventajasManuales && <Check size={12} color="#fff"/>}</div>
+                  Permitir ventajas manuales por jugador o equipo
+                </button>
+                {torneo.ventajasManuales && (
+                  <div style={{ marginTop:10 }}>
+                    <div style={{ fontSize:11, color:D.textSub, marginBottom:8 }}>Total ajustado = golpes brutos + ventaja. Un valor <b>−1</b> resta un golpe (recibe ventaja); <b>+1</b> suma un golpe (da ventaja). Se aplica una sola vez al total de la ronda.</div>
+                    {Object.values(torneo.unidades||{}).length === 0 && <div style={{ fontSize:12, color:D.textDim }}>Aún no hay unidades.</div>}
+                    {Object.values(torneo.unidades||{}).map(u => {
+                      const v = Number.isInteger(u.ventaja) ? u.ventaja : 0;
+                      const cambiar = (d) => { const nv = Math.max(-10, Math.min(10, v + d)); if (nv !== v) set(ref(db, `torneos/${torneoId}/unidades/${u.id}/ventaja`), nv); };
+                      return (
+                        <div key={u.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:`1px solid ${D.border}` }}>
+                          <div style={{ flex:1, minWidth:0, fontSize:13, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre}</div>
+                          <button onClick={() => cambiar(-1)} style={{ width:30, height:30, borderRadius:"50%", border:`1px solid ${D.border}`, background:D.surface, color:D.text, cursor:"pointer", fontSize:17, lineHeight:1, padding:0 }}>−</button>
+                          <div style={{ width:40, textAlign:"center", fontSize:16, fontWeight:900, color:v===0?D.textSub:D.gold }}>{fmtVentaja(v)}</div>
+                          <button onClick={() => cambiar(1)} style={{ width:30, height:30, borderRadius:"50%", border:`1px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:17, lineHeight:1, padding:0 }}>+</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </Card>
           <Card>
             <SLabel>Pares de campo (solo este torneo)</SLabel>
@@ -3778,7 +3840,10 @@ function AdminTorneoApp({ onExit }) {
                           <div style={{ fontSize:12, fontWeight:600 }}>{u.nombre}</div>
                           <div style={{ fontSize:10, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>
                         </div>
-                        <div style={{ fontSize:13, fontWeight:900, color:D.gold }}>{u.neto}</div>
+                        <div style={{ textAlign:"right" }}>
+                          <div style={{ fontSize:13, fontWeight:900, color:D.gold }}>{u.neto}</div>
+                          {r.ventajasManuales && <div style={{ fontSize:9, color:D.textSub }}>{u.brutoReal} · Ventaja {fmtVentaja(u.ventaja)}</div>}
+                        </div>
                       </div>
                     ))}
                     <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${D.border}` }}>
