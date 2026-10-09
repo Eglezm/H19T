@@ -1299,7 +1299,7 @@ function AutoFitScale({ children }) {
   );
 }
 
-function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
+function SpectatorTorneoView({ torneoId, vistaInicial = "todo", onExit }) {
   const [torneo, setTorneo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tvMode, setTvMode] = useState(vistaInicial !== "todo");
@@ -1339,6 +1339,11 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo" }) {
       <div style={{ background:"rgba(255,255,255,0.7)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderBottom:`1px solid ${D.border}`, boxShadow:"0 1px 0 rgba(255,255,255,0.5) inset", padding:tvMode?"8px 20px 6px":"20px 16px 14px", textAlign:"center", position:"relative", flexShrink:0 }}>
         {!tvMode && (
           <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }} className="no-print">
+            {onExit && (
+              <button onClick={onExit} style={{ padding:"6px 12px", border:`1px solid ${D.border}`, borderRadius:14, background:"transparent", color:D.textSub, fontSize:11, fontWeight:700, cursor:"pointer" }}>
+                <X size={13}/> Salir
+              </button>
+            )}
             <button onClick={() => setTvMode(v => { const next = !v; if (next && vista==="todo") setVista("auto"); return next; })} style={{ padding:"6px 12px", border:`1px solid ${D.gold}`, borderRadius:14, background:D.goldDim, color:D.gold, fontSize:11, fontWeight:700, cursor:"pointer" }}>
               <Monitor size={14}/> Modo pantalla completa
             </button>
@@ -2011,7 +2016,7 @@ export default function H19T() {
 
   if (mode === null) return <Spinner label="Cargando H19T..." />;
   if (mode === "team" && activeCodigo) return <TeamPlayView codigo={activeCodigo} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
-  if (mode === "spectator" && activeTorneoId) return <SpectatorTorneoView torneoId={activeTorneoId} vistaInicial={activeVista} />;
+  if (mode === "spectator" && activeTorneoId) return <SpectatorTorneoView torneoId={activeTorneoId} vistaInicial={activeVista} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
   if (mode === "oyes" && activeOyesTorneo) return <OyesRecordView torneoId={activeOyesTorneo} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
   if (mode === "score" && scoreTorneoId) return <ScoreRecordView torneoId={scoreTorneoId} onExit={() => { setMode("home"); setScoreTorneoId(null); }} />;
 
