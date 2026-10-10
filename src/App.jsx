@@ -31,7 +31,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getDatabase(firebaseApp);
 const storage = getStorage(firebaseApp);
 
-const ADMIN_PIN = "1919";
+const ADMIN_PIN = "1818";
 
 const CAMPOS = {
   huerta:    { nombre: "Club de Golf La Huerta",         pares: [4,3,3,3,3,4,3,3,3,4,3,3,3,3,4,3,3,3], nueveHoyos: true },
