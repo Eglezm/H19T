@@ -407,8 +407,20 @@ function buildChain(ids) {
 function ventajasActivas(torneo) {
   return torneo?.ventajasManuales === true && !(Number(torneo.hcPercent) > 0);
 }
+// La ventaja se guarda completa y solo admite incrementos de 0.5 (0, ±0.5, ±1, ±1.5...).
+function ventajaValida(n) {
+  return typeof n === "number" && Number.isFinite(n) && Math.round(n * 2) === n * 2;
+}
+// Solo la parte ENTERA (truncada, sin redondear) se suma/resta al total: +1.5 → +1, -1.5 → -1, ±0.5 → 0.
+function ajusteEntero(n) {
+  return ventajaValida(n) ? (Math.trunc(n) || 0) : 0;
+}
+// ¿La ventaja trae fracción de medio golpe? (+0.5 y -0.5 cuentan igual) — primer criterio de desempate.
+function tieneMedioGolpe(n) {
+  return ventajaValida(n) && Math.abs(n - Math.trunc(n)) === 0.5;
+}
 function fmtVentaja(n) {
-  const v = Number.isInteger(n) ? n : 0;
+  const v = ventajaValida(n) ? n : 0;
   return v > 0 ? `+${v}` : v < 0 ? `-${Math.abs(v)}` : "0";
 }
 
@@ -424,11 +436,14 @@ function calcTotales(unidad, pares, ventajaOn = false) {
   });
   const hcAplicado = unidad.hcAplicado || 0;
   // Ventaja manual: se suma UNA sola vez al total de la ronda (nunca por hoyo); el bruto no se toca.
-  const ventaja = (ventajaOn && Number.isInteger(unidad.ventaja)) ? unidad.ventaja : 0;
-  const neto = brutoReal - hcAplicado + ventaja;   // con ventajas activas = TOTAL AJUSTADO
+  // La ventaja completa (puede traer 0.5) se conserva en `ventaja`; al total solo entra su parte entera.
+  const ventaja = (ventajaOn && ventajaValida(unidad.ventaja)) ? unidad.ventaja : 0;
+  const ajuste = ajusteEntero(ventaja);
+  const medioGolpe = tieneMedioGolpe(ventaja);
+  const neto = brutoReal - hcAplicado + ajuste;   // con ventajas activas = TOTAL AJUSTADO (siempre entero)
   const vsPar = brutoReal - parJugado;       // cómo van contra par, sin considerar HP
-  const vsParHc = vsPar - hcAplicado + ventaja;        // lo mismo, restando el HP (y aplicando la ventaja)
-  return { jugados, brutoReal, hcAplicado, neto, parJugado, vsPar, vsParHc, ventaja };
+  const vsParHc = vsPar - hcAplicado + ajuste;        // lo mismo, restando el HP (y aplicando el ajuste entero de la ventaja)
+  return { jugados, brutoReal, hcAplicado, neto, parJugado, vsPar, vsParHc, ventaja, medioGolpe };
 }
 
 function fmtVsPar(n) {
@@ -486,7 +501,8 @@ function leaderboard(torneo) {
   if (!torneo || !torneo.unidades || !torneo.pares) return [];
   return Object.values(torneo.unidades)
     .map(u => ({ ...u, ...calcTotales(u, torneo.pares, ventajasActivas(torneo)) }))
-    .sort((a,b) => a.vsParHc - b.vsParHc || compararDesempateScore(a, b, torneo.pares));
+    // 1) total ajustado, 2) la fracción de 0.5 de la ventaja (la tiene prioridad), 3) desempates existentes
+    .sort((a,b) => a.vsParHc - b.vsParHc || (b.medioGolpe ? 1 : 0) - (a.medioGolpe ? 1 : 0) || compararDesempateScore(a, b, torneo.pares));
 }
 
 // Hoyo actual de una unidad: el siguiente después del último hoyo con score registrado,
@@ -2782,7 +2798,7 @@ function AdminTorneoApp({ onExit }) {
       pares: torneo.pares,
       ganador: rows[0]?.nombre || "—", netoGanador: rows[0]?.neto ?? null,
       ventajasManuales: ventajasActivas(torneo),
-      unidades: rows.map(u => ({ id:u.id, nombre:u.nombre, jugadores:u.jugadores, hcAplicado:u.hcAplicado, neto:u.neto, brutoReal:u.brutoReal, ventaja:u.ventaja || 0, scores:u.scores })),
+      unidades: rows.map(u => ({ id:u.id, nombre:u.nombre, jugadores:u.jugadores, hcAplicado:u.hcAplicado, neto:u.neto, brutoReal:u.brutoReal, ventaja:u.ventaja || 0, medioGolpe:!!u.medioGolpe, scores:u.scores })),
     };
     set(ref(db, `torneoHistorial/${torneoId}`), histData);
     set(ref(db, `torneos/${torneoId}/status`), "finalizada");
@@ -3110,17 +3126,17 @@ function AdminTorneoApp({ onExit }) {
                 </button>
                 {torneo.ventajasManuales && (
                   <div style={{ marginTop:10 }}>
-                    <div style={{ fontSize:11, color:D.textSub, marginBottom:8 }}>Total ajustado = golpes brutos + ventaja. Un valor <b>−1</b> resta un golpe (recibe ventaja); <b>+1</b> suma un golpe (da ventaja). Se aplica una sola vez al total de la ronda.</div>
+                    <div style={{ fontSize:11, color:D.textSub, marginBottom:8 }}>Total ajustado = golpes brutos + ventaja. Un valor <b>−1</b> resta un golpe (recibe ventaja); <b>+1</b> suma un golpe (da ventaja). Se aplica una sola vez al total de la ronda. Admite medios golpes (±0.5, ±1.5…): solo la parte entera cuenta en el total y el .5 sirve como primer desempate.</div>
                     {Object.values(torneo.unidades||{}).length === 0 && <div style={{ fontSize:12, color:D.textDim }}>Aún no hay unidades.</div>}
                     {Object.values(torneo.unidades||{}).map(u => {
-                      const v = Number.isInteger(u.ventaja) ? u.ventaja : 0;
+                      const v = ventajaValida(u.ventaja) ? u.ventaja : 0;
                       const cambiar = (d) => { const nv = Math.max(-10, Math.min(10, v + d)); if (nv !== v) set(ref(db, `torneos/${torneoId}/unidades/${u.id}/ventaja`), nv); };
                       return (
                         <div key={u.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:`1px solid ${D.border}` }}>
                           <div style={{ flex:1, minWidth:0, fontSize:13, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{u.nombre}</div>
-                          <button onClick={() => cambiar(-1)} style={{ width:30, height:30, borderRadius:"50%", border:`1px solid ${D.border}`, background:D.surface, color:D.text, cursor:"pointer", fontSize:17, lineHeight:1, padding:0 }}>−</button>
-                          <div style={{ width:40, textAlign:"center", fontSize:16, fontWeight:900, color:v===0?D.textSub:D.gold }}>{fmtVentaja(v)}</div>
-                          <button onClick={() => cambiar(1)} style={{ width:30, height:30, borderRadius:"50%", border:`1px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:17, lineHeight:1, padding:0 }}>+</button>
+                          <button onClick={() => cambiar(-0.5)} style={{ width:30, height:30, borderRadius:"50%", border:`1px solid ${D.border}`, background:D.surface, color:D.text, cursor:"pointer", fontSize:17, lineHeight:1, padding:0 }}>−</button>
+                          <div style={{ width:48, textAlign:"center", fontSize:16, fontWeight:900, color:v===0?D.textSub:D.gold }}>{fmtVentaja(v)}</div>
+                          <button onClick={() => cambiar(0.5)} style={{ width:30, height:30, borderRadius:"50%", border:`1px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:17, lineHeight:1, padding:0 }}>+</button>
                         </div>
                       );
                     })}
@@ -3833,7 +3849,7 @@ function AdminTorneoApp({ onExit }) {
                 </div>
                 {isOpen && r.unidades && (
                   <div style={{ marginTop:10, background:D.bg, borderRadius:10, padding:10 }}>
-                    {r.unidades.slice().sort((a,b)=>a.neto-b.neto).map((u,pos) => (
+                    {r.unidades.slice().sort((a,b)=>a.neto-b.neto || (b.medioGolpe?1:0)-(a.medioGolpe?1:0)).map((u,pos) => (
                       <div key={u.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:pos<r.unidades.length-1?`1px solid ${D.border}`:"none" }}>
                         <div style={{ width:18, fontSize:11, fontWeight:900, color:pos===0?D.gold:D.textSub }}>{pos+1}</div>
                         <div style={{ flex:1 }}>
