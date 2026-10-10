@@ -6,7 +6,7 @@
 // Si hay que agrandar o achicar TODA la franja, cambia únicamente esta constante.
 // Nunca ajustes el w de un logo individual para ese fin.
 const ESCALA_GLOBAL = 1;
-export const ALTURA_MAX_TV = 72; // altura máxima de un logo en la franja del modo TV (px de lienzo)
+export const ALTURA_MAX_TV = 78; // altura máxima de un logo en la franja del modo TV (px de lienzo)
 
 import { sponsors } from "./sponsors";
 

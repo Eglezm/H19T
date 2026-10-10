@@ -24,4 +24,5 @@ export const sponsors = [
   { id: 'arboterra', src: '/logos/sponsor-arboterra.png', w: 99, r: 0.9141 },
   { id: 'mazda-serdan', src: '/logos/sponsor-mazda-serdan.png', w: 145, r: 0.4307 },
   { id: 'camiones-rivera', src: '/logos/sponsor-camiones-rivera.png', w: 183, r: 0.2681 },
+  { id: 'olg', src: '/logos/sponsor-olg.png', w: 134, r: 0.5045 },
 ];
