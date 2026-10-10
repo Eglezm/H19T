@@ -1107,7 +1107,7 @@ function PremiosEspecialesPanel({ especiales, big }) {
 }
 
 // ─── CLASIFICACIÓN DE O'YES (reutilizable) ────────
-function OyesLiveView({ torneo, big, onCycleComplete }) {
+function OyesLiveView({ torneo, big, onCycleComplete, maxFilas }) {
   const sinOyes = !torneo.oyes || !torneo.oyes.holes || torneo.oyes.holes.length===0;
   const premios = torneo.oyes?.premios || 3;
   const premiosNombres = torneo.oyes?.premiosNombres || [];
@@ -1145,7 +1145,7 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
     <>
       {hayEspeciales && !repartir && <PremiosEspecialesPanel especiales={especiales} big={big} />}
       {grupos.map((g, gi) => (
-        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={(big && onCycleComplete) ? handleGroupComplete : undefined}
+        <OyesGroupCard key={gi} g={g} premios={premios} premiosNombres={premiosNombres} big={big} onCycleComplete={(big && onCycleComplete) ? handleGroupComplete : undefined} maxFilas={maxFilas}
           encabezado={repartir ? <PremiosEspecialesPanel especiales={especiales} big={big} /> : null} nEncabezado={Object.keys(especiales).length} />
       ))}
     </>
@@ -1154,10 +1154,10 @@ function OyesLiveView({ torneo, big, onCycleComplete }) {
 
 // Tarjeta de un grupo de O'Yes (un hoyo, o la clasificación general) — en pantalla completa
 // cicla de 6 en 6 jugadores, cambiando cada 5s.
-function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete, encabezado = null, nEncabezado = 0 }) {
+function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete, encabezado = null, nEncabezado = 0, maxFilas }) {
   const PAGE_SIZE = 6;
   // Pantalla completa: solo los primeros 12 (2 páginas de 6) — ahorra tiempo de ciclo.
-  const rankingVista = big ? g.ranking.slice(0, 12) : g.ranking;
+  const rankingVista = big ? g.ranking.slice(0, 12) : (maxFilas ? g.ranking.slice(0, maxFilas) : g.ranking);
   // Lugares premiados que aún no tienen ganador: se muestran como filas vacías con su premio.
   const vacios = Array.from({ length: Math.max(0, Math.min(premios, big ? 12 : premios) - rankingVista.length) }, (_, i) => ({ vacio:true, jugadorId:`vacio-${rankingVista.length+i}` }));
   const filasVista = [...rankingVista, ...vacios];
@@ -1494,6 +1494,11 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo", onExit }) {
 }
 
 // ─── VISTA DE EQUIPO (acceso por código) ──────────
+// ¿Hay O'Yes o Premios Especiales que mostrarle al jugador en su pantalla de anotación?
+function hayOyesJugador(torneo) {
+  return !!(torneo?.oyes?.holes?.length) || Object.keys(premiosEspecialesOyes(torneo) || {}).length > 0;
+}
+
 // ─── AYUDA / TUTORIAL (solo con el botón, nunca automático) ─────────────────
 const TUTORIALES = {
   score: { titulo:"Cómo anotar el score", pasos:[
@@ -1680,6 +1685,7 @@ function TeamPlayView({ codigo, onExit }) {
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px 0 16px", color:D.success, fontWeight:700 }}><Flag size={16}/> El torneo ha finalizado</div>
           <TablaPosiciones torneo={torneo} highlightId={unidadId} />
           <TarjetaHoyoPorHoyo torneo={torneo} />
+          {hayOyesJugador(torneo) && <OyesLiveView torneo={torneo} maxFilas={10} />}
         </div>
       ) : (
         <div style={{ padding:"0 12px 96px" }}>
@@ -1732,6 +1738,7 @@ function TeamPlayView({ codigo, onExit }) {
             <>
               <TablaPosiciones torneo={torneo} highlightId={unidadId} />
               <TarjetaHoyoPorHoyo torneo={torneo} />
+              {hayOyesJugador(torneo) && <OyesLiveView torneo={torneo} maxFilas={10} />}
             </>
           )}
           </div>
@@ -1867,6 +1874,7 @@ function ScoreRecordView({ torneoId, onExit }) {
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px 0 16px", color:D.success, fontWeight:700 }}><Flag size={16}/> El torneo ha finalizado</div>
           <TablaPosiciones torneo={torneo} highlightId={unidadId} />
           <TarjetaHoyoPorHoyo torneo={torneo} />
+          {hayOyesJugador(torneo) && <OyesLiveView torneo={torneo} maxFilas={10} />}
         </div>
       ) : (
         <div style={{ padding:"0 12px 96px" }}>
@@ -1899,6 +1907,7 @@ function ScoreRecordView({ torneoId, onExit }) {
             <>
               <TablaPosiciones torneo={torneo} highlightId={unidadId} />
               <TarjetaHoyoPorHoyo torneo={torneo} />
+              {hayOyesJugador(torneo) && <OyesLiveView torneo={torneo} maxFilas={10} />}
             </>
           )}
           </div>
