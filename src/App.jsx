@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { useState, useEffect, useRef, useLayoutEffect, createContext, useContext } from "react";
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue, remove, get } from "firebase/database";
+import { getDatabase, ref, set, onValue, remove, get, runTransaction } from "firebase/database";
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from "firebase/storage";
 import {
   Target, Trophy, Check, Flag, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pencil, User, Users,
@@ -1750,6 +1750,20 @@ function TeamPlayView({ codigo, onExit }) {
 
 // ─── REGISTRO DE SCORE (público): elige equipo/jugador y anota su propio score directo,
 // sin cadena de marcaje ni código asignado — la "contraseña" es simplemente su propio nombre.
+// ── Reserva de unidad al anotar: una sola persona anota a la vez a cada grupo/jugador ──
+// Quien elige una unidad la "reserva" (unidades/<id>/anotador = {id del dispositivo, hora del servidor}) y
+// mantiene la reserva con un latido cada 20 s. Si el dispositivo se apaga o pierde señal, la reserva
+// caduca sola a los 90 s y la unidad vuelve a aparecer en la lista. El administrador no se ve afectado
+// (anota desde "Capturar Score", que no usa reservas).
+const RESERVA_MS = 90000;
+function idDispositivo() {
+  try {
+    let v = localStorage.getItem("h19t_dispositivo");
+    if (!v) { v = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("h19t_dispositivo", v); }
+    return v;
+  } catch (e) { return "mem-" + Math.random().toString(36).slice(2); }
+}
+
 function ScoreRecordView({ torneoId, onExit }) {
   const [loading, setLoading] = useState(true);
   const [torneo, setTorneo] = useState(null);
@@ -1761,6 +1775,10 @@ function ScoreRecordView({ torneoId, onExit }) {
   const [posInOrder, setPosInOrder] = useState(0);
   const [tab, setTab] = useState("marcar");
   const [pendingScore, setPendingScore] = useState({});
+  const [miId] = useState(() => idDispositivo());
+  const offsetRef = useRef(0);
+  const [aviso, setAviso] = useState("");
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     const r = ref(db, `torneos/${torneoId}`);
@@ -1768,14 +1786,46 @@ function ScoreRecordView({ torneoId, onExit }) {
     return () => unsub();
   }, [torneoId]);
 
+  // Hora del servidor (para que los relojes de los celulares no afecten la caducidad de las reservas)
+  useEffect(() => {
+    const u = onValue(ref(db, ".info/serverTimeOffset"), snap => { offsetRef.current = snap.val() || 0; });
+    return () => u();
+  }, []);
+  // Repinta cada 15 s para que una reserva caducada vuelva a aparecer en la lista
+  useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 15000); return () => clearInterval(t); }, []);
+
+  const ahoraSrv = () => Date.now() + offsetRef.current;
+  const rutaReserva = (id) => ref(db, `torneos/${torneoId}/unidades/${id}/anotador`);
+  // Intenta reservar la unidad (atómico): falla si otro dispositivo la tiene reservada y vigente.
+  const reservar = (id) => runTransaction(rutaReserva(id), cur => {
+    if (cur && cur.id !== miId && ahoraSrv() - (cur.ts || 0) < RESERVA_MS) return; // abortar
+    return { id: miId, ts: ahoraSrv() };
+  }).then(r => r.committed).catch(() => false);
+  const liberar = (id) => runTransaction(rutaReserva(id), cur => (cur && cur.id === miId) ? null : cur).catch(() => {});
+
+  // Mientras hay una unidad elegida: latido cada 20 s y liberación al salir/cambiar de unidad
+  useEffect(() => {
+    if (!unidadId) return;
+    const id = unidadId;
+    const latido = setInterval(() => {
+      reservar(id).then(ok => { if (!ok) { setAviso("Otra persona tomó este equipo. Elige de nuevo."); setUnidadId(null); setAutenticado(false); } });
+    }, 20000);
+    const alCerrar = () => { liberar(id); };
+    window.addEventListener("pagehide", alCerrar);
+    return () => { clearInterval(latido); window.removeEventListener("pagehide", alCerrar); liberar(id); };
+  }, [unidadId]);
+
   if (loading) return <Spinner label="Conectando..." />;
   if (!torneo) return <Spinner label="Torneo no encontrado" />;
 
   const unidadesList = Object.values(torneo.unidades || {});
+  const libreParaMi = (u) => { const a = u.anotador; return !a || a.id === miId || ahoraSrv() - (a.ts || 0) >= RESERVA_MS; };
 
   // Paso 1: elegir a quién se le va a anotar el score
   if (!unidadId) {
-    const filtradas = unidadesList.filter(u =>
+    const disponibles = unidadesList.filter(libreParaMi);
+    const ocupadas = unidadesList.length - disponibles.length;
+    const filtradas = disponibles.filter(u =>
       u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       (u.jugadores||[]).some(j => j.name.toLowerCase().includes(busqueda.toLowerCase()))
     );
@@ -1785,15 +1835,17 @@ function ScoreRecordView({ torneoId, onExit }) {
         <div style={{ fontSize:13, color:D.textSub, textAlign:"center" }}>{torneo.nombre}</div>
         <div style={{ fontSize:14, fontWeight:700, textAlign:"center", marginBottom:4 }}>¿A quién le vas a anotar el score?</div>
         <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar equipo o jugador..." style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box" }} />
+        {aviso && <div style={{ padding:"8px 12px", borderRadius:10, background:D.redBg, border:`1px solid ${D.danger}`, color:D.danger, fontSize:12, fontWeight:700, textAlign:"center" }}>{aviso}</div>}
         <div style={{ maxHeight:360, overflowY:"auto", border:`1px solid ${D.border}`, borderRadius:12 }}>
           {filtradas.map(u => (
-            <div key={u.id} onClick={() => { setUnidadId(u.id); setPassInput(""); setPassError(false); }} style={{ padding:"10px 12px", borderBottom:`1px solid ${D.border}`, cursor:"pointer" }}>
+            <div key={u.id} onClick={() => { setAviso(""); reservar(u.id).then(ok => { if (ok) { setUnidadId(u.id); setPassInput(""); setPassError(false); } else setAviso("Alguien más ya está anotando a este equipo. Elige otro."); }); }} style={{ padding:"10px 12px", borderBottom:`1px solid ${D.border}`, cursor:"pointer" }}>
               <div style={{ fontSize:14, fontWeight:700 }}>{u.nombre}</div>
               {u.jugadores && u.jugadores.length>1 && <div style={{ fontSize:11, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>}
             </div>
           ))}
           {filtradas.length===0 && <div style={{ padding:14, textAlign:"center", color:D.textSub, fontSize:13 }}>Sin resultados</div>}
         </div>
+        {ocupadas > 0 && <div style={{ fontSize:11, color:D.textDim, textAlign:"center" }}>{ocupadas} equipo{ocupadas!==1?"s":""} {ocupadas!==1?"ya están":"ya está"} siendo anotado{ocupadas!==1?"s":""} por otra persona y no aparece{ocupadas!==1?"n":""} en la lista.</div>}
         <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer", textAlign:"center" }}><ChevronLeft size={14}/> Volver</button>
       </div>
     );
