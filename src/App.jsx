@@ -31,7 +31,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getDatabase(firebaseApp);
 const storage = getStorage(firebaseApp);
 
-const ADMIN_PIN = "1818";
+const ADMIN_PIN = "1919";
 
 const CAMPOS = {
   huerta:    { nombre: "Club de Golf La Huerta",         pares: [4,3,3,3,3,4,3,3,3,4,3,3,3,3,4,3,3,3], nueveHoyos: true },
@@ -1185,6 +1185,74 @@ function OyesGroupCard({ g, premios, premiosNombres, big, onCycleComplete, encab
         </div>
       )}
     </Card>
+    </>
+  );
+}
+
+// Sección O'Yes + Premios Especiales dentro de un torneo del Historial.
+// Usa los datos guardados al finalizar (r.oyes / r.oyesEntradas); en torneos finalizados antes de este
+// cambio intenta leerlos de torneos/<id> (si el torneo aún existe).
+function HistorialOyes({ r }) {
+  const [datos, setDatos] = useState(r.oyes || r.oyesEntradas ? { oyes:r.oyes, oyesEntradas:r.oyesEntradas } : null);
+  const [cargando, setCargando] = useState(!datos);
+  useEffect(() => {
+    if (datos) return;
+    let vivo = true;
+    get(ref(db, `torneos/${r.id}`)).then(snap => {
+      if (!vivo) return;
+      const v = snap.exists() ? snap.val() : {};
+      setDatos({ oyes:v.oyes, oyesEntradas:v.oyesEntradas });
+      setCargando(false);
+    }).catch(() => { if (vivo) { setDatos({}); setCargando(false); } });
+    return () => { vivo = false; };
+  }, [r.id]);
+  const titulo = { fontSize:11, fontWeight:800, letterSpacing:0.6, textTransform:"uppercase", color:D.gold, marginBottom:6 };
+  const caja = { marginTop:10, background:D.bg, borderRadius:10, padding:10 };
+  if (cargando) return <div style={{ ...caja, fontSize:11, color:D.textSub }}>Cargando O'Yes…</div>;
+  const t = { oyes: datos?.oyes, oyesEntradas: datos?.oyesEntradas };
+  const holes = t.oyes?.holes || [];
+  const especiales = premiosEspecialesOyes(t);
+  const listaEsp = Object.values(especiales);
+  const grupos = holes.length ? clasificacionOyes(t, jugadoresGanadoresPremiosEspeciales(especiales)) : [];
+  if (!listaEsp.length && !holes.length) {
+    return <div style={{ ...caja, fontSize:11, color:D.textSub }}>Este torneo no tiene información de O'Yes guardada.</div>;
+  }
+  const premios = t.oyes?.premios || 3;
+  const nombres = t.oyes?.premiosNombres || [];
+  const fila = (e, pos, premio) => (
+    <div key={e.jugadorId+"-"+pos} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${D.border}` }}>
+      <div style={{ width:18, fontSize:11, fontWeight:900, color:pos<premios?D.gold:D.textSub }}>{pos+1}</div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:12, fontWeight:600 }}>{e.jugadorNombre}</div>
+        <div style={{ fontSize:10, color:D.textSub }}>{e.unidadNombre} · Hoyo {e.holeFisico}{premio ? ` · ${premio}` : ""}</div>
+      </div>
+      <div style={{ fontSize:13, fontWeight:900, color:D.gold }}>{Number(e.cm||0).toFixed(2)} cm</div>
+    </div>
+  );
+  return (
+    <>
+      {listaEsp.length > 0 && (
+        <div style={caja}>
+          <div style={titulo}>Premios especiales</div>
+          {listaEsp.map((it, i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:i<listaEsp.length-1?`1px solid ${D.border}`:"none" }}>
+              <Trophy size={13} color={D.gold}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, fontWeight:700 }}>{it.nombre || "Premio especial"}{it.valor ? ` · ${it.valor}` : ""}</div>
+                <div style={{ fontSize:10, color:D.textSub }}>{it.ganador ? `${it.ganador.jugadorNombre} · ${it.ganador.unidadNombre} · Hoyo ${it.ganador.holeFisico}` : "Sin ganador"}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {grupos.map((g, gi) => (
+        <div key={gi} style={caja}>
+          <div style={titulo}>O'Yes{g.hole ? ` · Hoyo ${g.hole}` : ""}</div>
+          {g.ranking.length === 0
+            ? <div style={{ fontSize:11, color:D.textSub }}>Sin anotaciones</div>
+            : g.ranking.slice(0, Math.max(premios, 10)).map((e, i) => fila(e, i, i<premios ? (nombres[i]||"").trim() : ""))}
+        </div>
+      ))}
     </>
   );
 }
@@ -2859,6 +2927,8 @@ function AdminTorneoApp({ onExit }) {
       pares: torneo.pares,
       ganador: rows[0]?.nombre || "—", netoGanador: rows[0]?.neto ?? null,
       ventajasManuales: ventajasActivas(torneo),
+      ...(torneo.oyes ? { oyes: torneo.oyes } : {}),
+      ...(torneo.oyesEntradas ? { oyesEntradas: torneo.oyesEntradas } : {}),
       unidades: rows.map(u => ({ id:u.id, nombre:u.nombre, jugadores:u.jugadores, hcAplicado:u.hcAplicado, neto:u.neto, brutoReal:u.brutoReal, ventaja:u.ventaja || 0, medioGolpe:!!u.medioGolpe, scores:u.scores })),
     };
     set(ref(db, `torneoHistorial/${torneoId}`), histData);
@@ -3923,6 +3993,7 @@ function AdminTorneoApp({ onExit }) {
                         </div>
                       </div>
                     ))}
+                    <HistorialOyes r={r} />
                     <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${D.border}` }}>
                       {confirmDeleteHist === r.id ? (
                         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
