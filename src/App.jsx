@@ -1930,7 +1930,7 @@ function idDispositivo() {
   } catch (e) { return "mem-" + Math.random().toString(36).slice(2); }
 }
 
-function ScoreRecordView({ torneoId, onExit }) {
+function ScoreRecordView({ torneoId, onExit, onCodigo }) {
   const [loading, setLoading] = useState(true);
   const [torneo, setTorneo] = useState(null);
   const [unidadId, setUnidadId] = useState(null);
@@ -1944,6 +1944,9 @@ function ScoreRecordView({ torneoId, onExit }) {
   const [miId] = useState(() => idDispositivo());
   const offsetRef = useRef(0);
   const [aviso, setAviso] = useState("");
+  const [codInput, setCodInput] = useState("");
+  const [codError, setCodError] = useState("");
+  const [codBuscando, setCodBuscando] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -1985,6 +1988,20 @@ function ScoreRecordView({ torneoId, onExit }) {
   if (!torneo) return <Spinner label="Torneo no encontrado" />;
 
   const unidadesList = Object.values(torneo.unidades || {});
+  // Entrar con el código de grupo (salida): lleva directo a la pantalla para anotar a todo el grupo
+  const entrarConCodigo = () => {
+    const c = codInput.trim().toUpperCase();
+    if (!c || codBuscando) return;
+    setCodBuscando(true); setCodError("");
+    get(ref(db, `codigos/${c}`)).then(snap => {
+      setCodBuscando(false);
+      if (!snap.exists()) { setCodError("Código no encontrado. Verifica con el organizador."); return; }
+      if (snap.val().torneoId !== torneoId) { setCodError("Ese código es de otro torneo."); return; }
+      if (onCodigo) onCodigo(c);
+    }).catch(() => { setCodBuscando(false); setCodError("No se pudo verificar el código."); });
+  };
+  // Si el torneo usa códigos de grupo, anotar por nombre ya no es válido: solo se entra con el código
+  const soloCodigo = unidadesList.some(u => u.codigoGrupo);
   const libreParaMi = (u) => { const a = u.anotador; return !a || a.id === miId || ahoraSrv() - (a.ts || 0) >= RESERVA_MS; };
 
   // Paso 1: elegir a quién se le va a anotar el score
@@ -1999,9 +2016,17 @@ function ScoreRecordView({ torneoId, onExit }) {
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", padding:24, gap:14 }}>
         <AppLogo fontSize={38} style={{ textAlign:"center" }} />
         <div style={{ fontSize:13, color:D.textSub, textAlign:"center" }}>{torneo.nombre}</div>
-        <div style={{ fontSize:14, fontWeight:700, textAlign:"center", marginBottom:4 }}>¿A quién le vas a anotar el score?</div>
-        <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar equipo o jugador..." style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box" }} />
+        <div style={{ padding:12, border:`1px solid ${D.gold}`, borderRadius:12, background:D.goldDim, display:"flex", flexDirection:"column", gap:8 }}>
+          <div style={{ fontSize:14, fontWeight:800, textAlign:"center", color:D.gold }}>Entrar con el código de tu grupo</div>
+          <input value={codInput} onChange={e => { setCodInput(e.target.value.toUpperCase()); setCodError(""); }} onKeyDown={e => { if (e.key === "Enter") entrarConCodigo(); }} placeholder="Código" maxLength={8}
+            style={{ width:"100%", padding:12, border:`1px solid ${codError?D.danger:D.border}`, borderRadius:12, background:D.surface, color:D.text, fontSize:20, textAlign:"center", letterSpacing:4, fontWeight:700, boxSizing:"border-box" }} />
+          {codError && <div style={{ color:D.danger, fontSize:12, fontWeight:700, textAlign:"center" }}>{codError}</div>}
+          <Btn onClick={entrarConCodigo} disabled={!codInput.trim() || codBuscando}>{codBuscando ? "Verificando..." : "Entrar a mi grupo"}</Btn>
+        </div>
+        {!soloCodigo && <div style={{ fontSize:14, fontWeight:700, textAlign:"center", marginBottom:4 }}>…o elige a quién le vas a anotar el score</div>}
+        {!soloCodigo && <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Buscar equipo o jugador..." style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box" }} />}
         {aviso && <div style={{ padding:"8px 12px", borderRadius:10, background:D.redBg, border:`1px solid ${D.danger}`, color:D.danger, fontSize:12, fontWeight:700, textAlign:"center" }}>{aviso}</div>}
+        {!soloCodigo && (<>
         <div style={{ maxHeight:360, overflowY:"auto", border:`1px solid ${D.border}`, borderRadius:12 }}>
           {filtradas.map(u => (
             <div key={u.id} onClick={() => { setAviso(""); reservar(u.id).then(ok => { if (ok) { setUnidadId(u.id); setPassInput(""); setPassError(false); } else setAviso("Alguien más ya está anotando a este equipo. Elige otro."); }); }} style={{ padding:"10px 12px", borderBottom:`1px solid ${D.border}`, cursor:"pointer" }}>
@@ -2012,6 +2037,7 @@ function ScoreRecordView({ torneoId, onExit }) {
           {filtradas.length===0 && <div style={{ padding:14, textAlign:"center", color:D.textSub, fontSize:13 }}>Sin resultados</div>}
         </div>
         {ocupadas > 0 && <div style={{ fontSize:11, color:D.textDim, textAlign:"center" }}>{ocupadas} equipo{ocupadas!==1?"s":""} {ocupadas!==1?"ya están":"ya está"} siendo anotado{ocupadas!==1?"s":""} por otra persona y no aparece{ocupadas!==1?"n":""} en la lista.</div>}
+        </>)}
         <button onClick={onExit} style={{ fontSize:13, color:D.textSub, background:"none", border:"none", cursor:"pointer", textAlign:"center" }}><ChevronLeft size={14}/> Volver</button>
       </div>
     );
@@ -2350,7 +2376,7 @@ export default function H19T() {
   if (mode === "team" && activeCodigo) return <TeamPlayView codigo={activeCodigo} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
   if (mode === "spectator" && activeTorneoId) return <SpectatorTorneoView torneoId={activeTorneoId} vistaInicial={activeVista} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
   if (mode === "oyes" && activeOyesTorneo) return <OyesRecordView torneoId={activeOyesTorneo} onExit={() => { setMode("home"); window.history.replaceState({},"",window.location.pathname); }} />;
-  if (mode === "score" && scoreTorneoId) return <ScoreRecordView torneoId={scoreTorneoId} onExit={() => { setMode("home"); setScoreTorneoId(null); }} />;
+  if (mode === "score" && scoreTorneoId) return <ScoreRecordView torneoId={scoreTorneoId} onExit={() => { setMode("home"); setScoreTorneoId(null); }} onCodigo={(c) => { window.history.replaceState({},"",`${window.location.pathname}?equipo=${c}`); setActiveCodigo(c); setScoreTorneoId(null); setMode("team"); }} />;
 
   if (mode === "torneo-pick") {
     const titulo = pickFor==="spectator" ? "Ver torneo en vivo" : pickFor==="score" ? "Registro de Score" : "Registro de O'Yes";
