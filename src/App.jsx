@@ -2491,6 +2491,7 @@ function AdminTorneoApp({ onExit }) {
   const [nombreEquipo, setNombreEquipo] = useState("");
   const [editandoUnidadId, setEditandoUnidadId] = useState(null);
   const [editHcs, setEditHcs] = useState({}); // HC propio de este torneo por jugador (id -> texto), al editar una unidad
+  const [hcPctEdit, setHcPctEdit] = useState(null); // % de HC en edición (texto) en la pantalla Unidades
   const [confirmCampo, setConfirmCampo] = useState(null); // clave del campo pendiente de confirmar
   const [editSelJugadores, setEditSelJugadores] = useState(new Set());
   const [editNombre, setEditNombre] = useState("");
@@ -2842,6 +2843,21 @@ function AdminTorneoApp({ onExit }) {
     Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)))
       .then(() => { setGuardadoOk(`Campo cambiado a ${CAMPOS[key].nombre}`); setTimeout(()=>setGuardadoOk(""), 2500); });
     setConfirmCampo(null);
+  };
+
+  // Cambia el % de HC del torneo y recalcula el HC aplicado de todas las unidades (scores intactos).
+  const aplicarHcPercent = (pct) => {
+    if (!torneo) return;
+    const v = Math.max(0, Math.min(100, Math.round(Number(pct))));
+    if (!Number.isFinite(v) || v === Number(torneo.hcPercent)) { setHcPctEdit(null); return; }
+    const base = `torneos/${torneoId}`;
+    const updates = { [`${base}/hcPercent`]: v };
+    Object.values(torneo.unidades||{}).forEach(u => {
+      if (u.jugadores?.length) updates[`${base}/unidades/${u.id}/hcAplicado`] = calcHcAplicado(u.jugadores, v, torneo.pares.length);
+    });
+    Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)))
+      .then(() => { setGuardadoOk(`HC del torneo ahora al ${v}%`); setTimeout(()=>setGuardadoOk(""), 2500); });
+    setHcPctEdit(null);
   };
 
   const toggleUnidadGrupo = (uid) => {
@@ -3457,6 +3473,17 @@ function AdminTorneoApp({ onExit }) {
               );
             })()}
             <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Se puede cambiar en cualquier momento. El HC aplicado se recalcula solo: a 9 hoyos es el 50% (HC 10 → 5). Al pasar de 18 a 9 se pide confirmación si hay scores o grupos que se verían afectados.</div>
+          </Card>
+          <Card>
+            <SLabel>% de HC del torneo</SLabel>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <input type="number" inputMode="numeric" min={0} max={100} step={1} value={hcPctEdit ?? String(torneo.hcPercent)} onChange={e => setHcPctEdit(e.target.value)}
+                style={{ width:80, textAlign:"center", fontSize:20, fontWeight:900, color:D.gold, border:`1px solid ${D.border}`, borderRadius:10, padding:"6px 4px", background:D.surface, boxSizing:"border-box" }} />
+              <span style={{ fontSize:20, fontWeight:900, color:D.gold }}>%</span>
+              <button disabled={hcPctEdit===null || hcPctEdit==="" || Number(hcPctEdit)===Number(torneo.hcPercent)} onClick={() => aplicarHcPercent(hcPctEdit)}
+                style={{ marginLeft:"auto", padding:"9px 16px", border:"none", borderRadius:10, background:(hcPctEdit===null || hcPctEdit==="" || Number(hcPctEdit)===Number(torneo.hcPercent))?D.border:D.gold, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>Aplicar</button>
+            </div>
+            <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Se puede cambiar en cualquier momento: el HC aplicado de todas las unidades se recalcula solo y los scores no se tocan. Con 0% se pueden usar las ventajas manuales.</div>
           </Card>
           <Card>
             <SLabel>Ventajas manuales por jugador o equipo</SLabel>
