@@ -1660,11 +1660,50 @@ function BloqueUltimoHoyo({ torneoId, unidadObj, pares, pendingScore, holeOrder 
   );
 }
 
+// Último hoyo de una SALIDA con un solo código: "Terminar" marca a todos los jugadores del grupo,
+// y solo deja terminar si TODOS tienen score en TODOS los hoyos.
+function BloqueUltimoHoyoGrupo({ torneoId, unidades, pares, pendingScore, holeOrder }) {
+  const [faltan, setFaltan] = useState(null);
+  const scoreDe = (u, h) => { const k = `${u.id}:${h}`; return pendingScore[k] !== undefined ? pendingScore[k] : u.scores?.[h]; };
+  const todosTerminados = unidades.length > 0 && unidades.every(u => u.terminado);
+  if (todosTerminados) {
+    return (
+      <div style={{ marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.success}`, background:D.greenBg, textAlign:"center" }}>
+        <div style={{ fontSize:19, fontWeight:900, color:D.success, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><Check size={26} strokeWidth={3}/> Ronda terminada</div>
+        <div style={{ fontSize:12, color:D.textSub, marginTop:4 }}>Los scores de la salida quedaron registrados. ¡Gracias!</div>
+        <button onClick={() => unidades.forEach(u => set(ref(db, `torneos/${torneoId}/unidades/${u.id}/terminado`), null))} style={{ marginTop:10, padding:"6px 14px", border:`1px solid ${D.border}`, borderRadius:20, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Reabrir para corregir</button>
+      </div>
+    );
+  }
+  const terminar = () => {
+    const pend = [];
+    unidades.forEach(u => {
+      const sin = holeOrder.filter(h => { const v = scoreDe(u, h); return v === null || v === undefined; }).map(h => h + 1);
+      if (sin.length) pend.push(`${u.nombre}: hoyo${sin.length>1?"s":""} ${sin.join(", ")}`);
+    });
+    if (pend.length > 0) { setFaltan(pend); return; }
+    setFaltan(null);
+    unidades.forEach(u => set(ref(db, `torneos/${torneoId}/unidades/${u.id}/terminado`), true));
+  };
+  return (
+    <div style={{ marginTop:14 }}>
+      <div style={{ padding:"10px 12px", borderRadius:12, background:D.goldDim, border:`1px solid ${D.gold}`, color:D.gold, fontSize:15, fontWeight:900, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><Flag size={18}/> Último hoyo por jugar</div>
+      {faltan && (
+        <div style={{ marginTop:10, padding:"10px 12px", borderRadius:12, background:D.redBg, border:`1px solid ${D.danger}`, color:D.danger, fontSize:13, fontWeight:700, textAlign:"center" }}>
+          Aún faltan scores — {faltan.join(" · ")}. Regresa con la flecha ‹ y anótalos.
+        </div>
+      )}
+      <button onClick={terminar} style={{ width:"100%", marginTop:10, padding:"16px 12px", borderRadius:14, border:"none", background:D.success, color:"#fff", cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><Check size={24} strokeWidth={3}/> Terminar</button>
+    </div>
+  );
+}
+
 function TeamPlayView({ codigo, onExit }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [torneoId, setTorneoId] = useState(null);
   const [unidadId, setUnidadId] = useState(null);
+  const [porSalida, setPorSalida] = useState(false); // código único de la salida: un jugador anota a todo el grupo
   const [torneo, setTorneo] = useState(null);
   const [posInOrder, setPosInOrder] = useState(0);
   const [tab, setTab] = useState("marcar");
@@ -1675,7 +1714,7 @@ function TeamPlayView({ codigo, onExit }) {
   useEffect(() => {
     const r = ref(db, `codigos/${codigo}`);
     get(r).then(snap => {
-      if (snap.exists()) { const v = snap.val(); setTorneoId(v.torneoId); setUnidadId(v.unidadId); }
+      if (snap.exists()) { const v = snap.val(); setTorneoId(v.torneoId); setUnidadId(v.unidadId); setPorSalida(!!v.porSalida); }
       else { setError("Código no encontrado. Verifica con el organizador."); setLoading(false); }
     }).catch(() => { setError("No se pudo verificar el código."); setLoading(false); });
   }, [codigo]);
@@ -1698,6 +1737,9 @@ function TeamPlayView({ codigo, onExit }) {
   if (!torneo || !torneo.unidades || !torneo.unidades[unidadId]) return <Spinner label="Torneo no encontrado" />;
 
   const miUnidad = torneo.unidades[unidadId];
+  const grupoUnidades = porSalida
+    ? Object.values(torneo.unidades).filter(u => u.grupoId && u.grupoId === miUnidad.grupoId).sort((a,b) => (a.ordenGrupo ?? 0) - (b.ordenGrupo ?? 0))
+    : [];
   const marcoA = torneo.unidades[miUnidad.marcaA];        // la unidad a la que YO le anoto
   const meMarca = torneo.unidades[miUnidad.marcadoPor];    // la unidad que ME anota a mí
   const pares = torneo.pares;
@@ -1717,6 +1759,19 @@ function TeamPlayView({ codigo, onExit }) {
       const val = base === null ? Math.max(1, delta > 0 ? par : par - 1) : Math.max(1, base + delta);
       set(ref(db, `torneos/${torneoId}/unidades/${miUnidad.marcaA}/scores/${hole}`), val);
       return { ...prev, [hole]: val };
+    });
+  };
+
+  // Código por salida: cada jugador del grupo tiene su propio +/− en el hoyo actual
+  const scoreGrupoDe = (u) => { const k = `${u.id}:${hole}`; return pendingScore[k] !== undefined ? pendingScore[k] : (u.scores || [])[hole]; };
+  const setScoreGrupo = (uid, delta) => {
+    setPendingScore(prev => {
+      const k = `${uid}:${hole}`;
+      const u = torneo.unidades[uid];
+      const base = prev[k] !== undefined ? prev[k] : (u?.scores?.[hole] ?? null);
+      const val = base === null ? Math.max(1, delta > 0 ? par : par - 1) : Math.max(1, base + delta);
+      set(ref(db, `torneos/${torneoId}/unidades/${uid}/scores/${hole}`), val);
+      return { ...prev, [k]: val };
     });
   };
 
@@ -1741,10 +1796,20 @@ function TeamPlayView({ codigo, onExit }) {
 
       <div style={{ padding:"12px 12px 4px" }}>
         <Card style={{ textAlign:"center" }}>
-          <div style={{ fontSize:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase" }}>Tu unidad</div>
-          <div style={{ fontSize:18, fontWeight:900, color:D.gold }}>{miUnidad.nombre}</div>
-          {miUnidad.jugadores && miUnidad.jugadores.length>1 && <div style={{ fontSize:11, color:D.textSub }}>{miUnidad.jugadores.map(j=>j.name).join(", ")}</div>}
-          <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {miUnidad.hoyoSalida+1} · HC aplicado {miUnidad.hcAplicado}</div>
+          {porSalida ? (
+            <>
+              <div style={{ fontSize:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase" }}>Tu salida</div>
+              <div style={{ fontSize:16, fontWeight:900, color:D.gold }}>{grupoUnidades.map(u => u.nombre).join(" · ")}</div>
+              <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {miUnidad.hoyoSalida+1} · anotas el score de todos</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase" }}>Tu unidad</div>
+              <div style={{ fontSize:18, fontWeight:900, color:D.gold }}>{miUnidad.nombre}</div>
+              {miUnidad.jugadores && miUnidad.jugadores.length>1 && <div style={{ fontSize:11, color:D.textSub }}>{miUnidad.jugadores.map(j=>j.name).join(", ")}</div>}
+              <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {miUnidad.hoyoSalida+1} · HC aplicado {miUnidad.hcAplicado}</div>
+            </>
+          )}
         </Card>
       </div>
 
@@ -1757,10 +1822,42 @@ function TeamPlayView({ codigo, onExit }) {
         </div>
       ) : (
         <div style={{ padding:"0 12px 96px" }}>
-          <BottomNav tabs={[{key:"marcar",icon:<Pencil size={16}/>,label:"Anotar"},{key:"mio",icon:<Eye size={16}/>,label:"Mi score"},{key:"pos",icon:<Trophy size={16}/>,label:"En vivo"}]} active={tab} onChange={cambiarTab} />
+          <BottomNav tabs={porSalida ? [{key:"marcar",icon:<Pencil size={16}/>,label:"Anotar"},{key:"pos",icon:<Trophy size={16}/>,label:"En vivo"}] : [{key:"marcar",icon:<Pencil size={16}/>,label:"Anotar"},{key:"mio",icon:<Eye size={16}/>,label:"Mi score"},{key:"pos",icon:<Trophy size={16}/>,label:"En vivo"}]} active={tab} onChange={cambiarTab} />
 
           <div key={tab} className="h19-tab-panel">
-          {tab === "marcar" && marcoA && (
+          {tab === "marcar" && porSalida && (
+            <Card>
+              <SLabel>Anotas para toda la salida</SLabel>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginBottom:10 }}>
+                <button onClick={() => irAHoyo(Math.max(0,posInOrder-1))} disabled={posInOrder===0} style={{ width:36,height:36,borderRadius:"50%",border:`1px solid ${D.border}`,background:"transparent",color:D.text,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:posInOrder===0?0.3:1 }}><ChevronLeft size={18}/></button>
+                <div style={{ textAlign:"center", minWidth:100 }}>
+                  <div style={{ fontSize:20, fontWeight:900 }}>Hoyo {hole+1}</div>
+                  <div style={{ fontSize:12, color:D.gold, fontWeight:700 }}>PAR {par}</div>
+                  <div style={{ fontSize:10, color:D.textDim, marginTop:2 }}>{posInOrder+1}/{pares.length} de la ronda</div>
+                  {teeSt && <div style={{ display:"inline-block", marginTop:4, padding:"2px 8px", borderRadius:10, fontSize:9, fontWeight:700, background:teeSt.bg, color:teeSt.fg, border:`1px solid ${teeSt.border}` }}><Flag size={11} style={{display:"inline",verticalAlign:"-2px",marginRight:3}}/>Tee {tee}</div>}
+                </div>
+                <div style={{ width:36, height:36 }} />
+              </div>
+              {grupoUnidades.map((u, idx) => {
+                const v = scoreGrupoDe(u);
+                return (
+                  <div key={u.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 0", borderTop:`1px solid ${D.border}` }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:14, fontWeight:800, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.nombre}</div>
+                      <div style={{ fontSize:11, fontWeight:700, color:v==null?D.danger:D.success }}>{v==null ? "Sin anotar" : "✓ Guardado"}</div>
+                    </div>
+                    <button onClick={() => setScoreGrupo(u.id, -1)} style={{ width:44,height:44,borderRadius:"50%",border:`1px solid ${D.border}`,background:D.surface,color:D.text,cursor:"pointer",fontSize:24,display:"flex",alignItems:"center",justifyContent:"center" }}>−</button>
+                    <div key={`g-${u.id}-${hole}-${v}`} style={{ width:44, textAlign:"center", fontSize:30, fontFamily:FONT_DISPLAY, fontWeight:700 }}><CountUp value={v ?? 0} duration={280} /></div>
+                    <button onClick={() => setScoreGrupo(u.id, 1)} style={{ width:44,height:44,borderRadius:"50%",border:`1px solid ${D.gold}`,background:D.goldDim,color:D.gold,cursor:"pointer",fontSize:24,display:"flex",alignItems:"center",justifyContent:"center" }}>+</button>
+                  </div>
+                );
+              })}
+              {posInOrder===pares.length-1
+                ? <BloqueUltimoHoyoGrupo torneoId={torneoId} unidades={grupoUnidades} pares={pares} pendingScore={pendingScore} holeOrder={holeOrder} />
+                : <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} style={{ width:"100%", marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><>Siguiente hoyo <ChevronRight size={30} strokeWidth={3}/></></button>}
+            </Card>
+          )}
+          {tab === "marcar" && !porSalida && marcoA && (
             <Card>
               <SLabel>Anotas para: {nombreConJugadores(marcoA)}</SLabel>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginBottom:10 }}>
@@ -1782,7 +1879,7 @@ function TeamPlayView({ codigo, onExit }) {
               {posInOrder===pares.length-1 ? <BloqueUltimoHoyo torneoId={torneoId} unidadObj={marcoA} pares={pares} pendingScore={pendingScore} holeOrder={holeOrder} /> : <button onClick={() => irAHoyo(Math.min(pares.length-1,posInOrder+1))} style={{ width:"100%", marginTop:14, padding:"16px 12px", borderRadius:14, border:`2px solid ${D.gold}`, background:D.goldDim, color:D.gold, cursor:"pointer", fontSize:19, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:posInOrder===pares.length-1?0.35:1 }}><>Siguiente hoyo <ChevronRight size={30} strokeWidth={3}/></></button>}
             </Card>
           )}
-          {tab === "marcar" && !marcoA && (
+          {tab === "marcar" && !porSalida && !marcoA && (
             <Card><div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Aún no se te asignó una unidad para anotar.</div></Card>
           )}
 
@@ -2429,6 +2526,7 @@ function AdminTorneoApp({ onExit }) {
   const [selUnidades, setSelUnidades] = useState([]); // orden importa (cadena)
   const [confirmHoyos, setConfirmHoyos] = useState(null); // nuevo nº de hoyos pendiente de confirmar (9 | 18 | null)
   const [nombreTorneoEdit, setNombreTorneoEdit] = useState(null); // null = sin editar (muestra torneo.nombre)
+  const [codigoSalida, setCodigoSalida] = useState(false); // un solo código por salida (útil en individual)
   const [grupoMax, setGrupoMax] = useState(4); // límite de unidades por grupo — el admin lo decide (en individual pueden salir más de 4 de un hoyo)
 
   const [codigosUsados, setCodigosUsados] = useState(new Set());
@@ -2617,6 +2715,13 @@ function AdminTorneoApp({ onExit }) {
       updates[`torneos/${torneoId}/unidades/${u.id}/hoyoSalida`] = null;
       updates[`torneos/${torneoId}/unidades/${u.id}/marcaA`] = null;
       updates[`torneos/${torneoId}/unidades/${u.id}/marcadoPor`] = null;
+      if (u.codigoGrupo) {
+        // El código de la salida deja de servir al deshacer el grupo
+        updates[`torneos/${torneoId}/unidades/${u.id}/codigo`] = null;
+        updates[`torneos/${torneoId}/unidades/${u.id}/codigoGrupo`] = null;
+        updates[`torneos/${torneoId}/unidades/${u.id}/ordenGrupo`] = null;
+        if (u.codigo) updates[`codigos/${u.codigo}`] = null;
+      }
     });
     Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)));
     setConfirmDisolver(null);
@@ -2681,6 +2786,31 @@ function AdminTorneoApp({ onExit }) {
 
   const crearGrupo = () => {
     if (!torneo || selUnidades.length < 2) return;
+    if (codigoSalida) {
+      // Un solo código para toda la salida: un jugador anota a todos (sin cadena de marcaje)
+      const grupoIdS = `G${Date.now()}`;
+      const usadosS = new Set(codigosUsados);
+      const codigoS = genCodigo(usadosS);
+      const upd = {};
+      selUnidades.forEach((uid, i) => {
+        upd[`torneos/${torneoId}/unidades/${uid}/hoyoSalida`] = hoyoSel - 1;
+        upd[`torneos/${torneoId}/unidades/${uid}/grupoId`] = grupoIdS;
+        upd[`torneos/${torneoId}/unidades/${uid}/marcaA`] = null;
+        upd[`torneos/${torneoId}/unidades/${uid}/marcadoPor`] = null;
+        upd[`torneos/${torneoId}/unidades/${uid}/codigo`] = codigoS;
+        upd[`torneos/${torneoId}/unidades/${uid}/codigoGrupo`] = true;
+        upd[`torneos/${torneoId}/unidades/${uid}/ordenGrupo`] = i;
+      });
+      upd[`codigos/${codigoS}`] = { torneoId, unidadId: selUnidades[0], porSalida: true };
+      Promise.all(Object.entries(upd).map(([path,val]) => set(ref(db, path), val)));
+      setSelUnidades([]);
+      if (torneo.pares) {
+        const usadosH = new Set(Object.values(torneo.unidades||{}).filter(u=>u.grupoId).map(u=>u.hoyoSalida));
+        usadosH.add(hoyoSel - 1);
+        for (let i=0; i<torneo.pares.length; i++) { if (!usadosH.has(i)) { setHoyoSel(i+1); break; } }
+      }
+      return;
+    }
     const chain = buildChain(selUnidades);
     const grupoId = `G${Date.now()}`;
     const usados = new Set(codigosUsados);
@@ -2943,6 +3073,20 @@ function AdminTorneoApp({ onExit }) {
     if (nueva) { setShareMsg("Vista en vivo abierta ✓ (link también copiado)"); }
     else { setShareMsg("El navegador bloqueó la ventana — copia el link manualmente"); }
     setTimeout(()=>setShareMsg(""), 3500);
+  };
+
+  const compartirCodigoSalida = (us) => {
+    const codigo = us[0].codigo;
+    const url = `${window.location.origin}${window.location.pathname}?equipo=${codigo}`;
+    const lines = [
+      `⛳ *H19T — ${torneo.nombre}*`,
+      `Salida del hoyo *${us[0].hoyoSalida+1}*`,
+      `Jugadores: ${us.map(u => u.nombre).join(", ")}`,
+      ``,
+      `Uno de ustedes anota el score de todos con este código: *${codigo}*`,
+      url,
+    ].join("\n");
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, "_blank");
   };
 
   const compartirCodigoIndividual = (u) => {
@@ -3399,6 +3543,13 @@ function AdminTorneoApp({ onExit }) {
                 <button onClick={() => setGrupoMax(m => Math.min(16, m+1))} style={{ width:26, height:26, borderRadius:"50%", border:`1px solid ${D.border}`, background:D.surface, color:D.text, fontWeight:900, cursor:"pointer" }}>+</button>
                 <span style={{ fontSize:11, color:D.textDim }}>(en modalidad individual pueden salir más de 4 de un mismo hoyo)</span>
               </div>
+              <div onClick={() => setCodigoSalida(v => !v)} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, padding:"8px 10px", border:`1px solid ${codigoSalida?D.gold:D.border}`, borderRadius:10, background:codigoSalida?D.goldDim:"transparent", cursor:"pointer" }}>
+                <div style={{ width:22,height:22,borderRadius:6,border:`2px solid ${codigoSalida?D.gold:D.border}`,background:codigoSalida?D.gold:"transparent",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center" }}>{codigoSalida && <Check size={14} strokeWidth={3}/>}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700 }}>Un solo código para toda la salida</div>
+                  <div style={{ fontSize:11, color:D.textSub }}>Un jugador del grupo anota el score de todos. Sin cadena de marcaje.</div>
+                </div>
+              </div>
               <div style={{ marginBottom:10 }}>
                 <span style={{ fontSize:12, color:D.textSub, marginRight:8 }}>Hoyo de salida</span>
                 <select value={hoyoSel} onChange={e=>setHoyoSel(parseInt(e.target.value))} style={{ padding:"6px 10px", border:`1px solid ${hoyosUsados.has(hoyoSel)?D.danger:D.border}`, borderRadius:8, background:D.surface, color:D.text, fontSize:13 }}>
@@ -3440,6 +3591,17 @@ function AdminTorneoApp({ onExit }) {
                   ))}
                   <span style={{ color:D.textDim, display:"inline-flex", alignItems:"center", gap:3 }}><ChevronRight size={13}/> ({us[0].nombre})</span>
                 </div>
+                {us[0].codigoGrupo && (
+                  <div style={{ marginTop:6, padding:"8px 10px", border:`1px solid ${D.gold}55`, borderRadius:10, background:D.goldDim }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, color:D.textSub }}>Código de la salida (un jugador anota a todos)</div>
+                        <div style={{ fontSize:20, fontWeight:900, color:D.gold, letterSpacing:2 }}>{us[0].codigo}</div>
+                      </div>
+                      <button onClick={() => compartirCodigoSalida(us)} style={{ padding:"6px 12px", border:"none", borderRadius:8, background:"#25D366", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", flexShrink:0 }}><MessageCircle size={13}/> Enviar</button>
+                    </div>
+                  </div>
+                )}
                 <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:8 }}>
                   {us.map(u => {
                     const marcaA = torneo.unidades?.[u.marcaA];
@@ -3451,9 +3613,9 @@ function AdminTorneoApp({ onExit }) {
                             {u.jugadores && u.jugadores.length>0 && <div style={{ fontSize:10, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>}
                           </div>
                           <button onClick={() => { iniciarEdicionUnidad(u); setScreen("unidades"); }} style={{ padding:"4px 10px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:11, cursor:"pointer", flexShrink:0 }}><Pencil size={12}/> Cambiar jugadores</button>
-                          <button onClick={() => compartirCodigoIndividual(u)} style={{ padding:"4px 10px", border:"none", borderRadius:8, background:"#25D366", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", flexShrink:0 }}><MessageCircle size={13}/> Enviar</button>
+                          {!u.codigoGrupo && <button onClick={() => compartirCodigoIndividual(u)} style={{ padding:"4px 10px", border:"none", borderRadius:8, background:"#25D366", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", flexShrink:0 }}><MessageCircle size={13}/> Enviar</button>}
                         </div>
-                        <div style={{ fontSize:11, color:D.textSub, marginTop:4 }}>Código (link): <b style={{ color:D.gold }}>{u.codigo}</b></div>
+                        {!u.codigoGrupo && <div style={{ fontSize:11, color:D.textSub, marginTop:4 }}>Código (link): <b style={{ color:D.gold }}>{u.codigo}</b></div>}
                         {marcaA && <div style={{ fontSize:11, color:D.textSub }}>Código App (Registro de Score): anota a <b style={{ color:D.gold }}>{marcaA.nombre}</b></div>}
                       </div>
                     );
@@ -3860,6 +4022,7 @@ function AdminTorneoApp({ onExit }) {
                   <div style={{ fontSize:13, fontWeight:700 }}>{u.nombre}</div>
                   <div style={{ fontSize:11, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>
                   {marcaA && <div style={{ fontSize:10, color:D.textSub, marginTop:2 }}>Código App: anota a <b style={{ color:D.gold }}>{marcaA.nombre}</b></div>}
+                  {u.codigoGrupo && <div style={{ fontSize:10, color:D.textSub, marginTop:2 }}>Código de salida: un jugador anota a todo el grupo</div>}
                 </div>
                 <div style={{ textAlign:"right" }}>
                   <div style={{ fontSize:16, fontWeight:900, color:D.gold, letterSpacing:1 }}>{u.codigo || "— sin código —"}</div>
