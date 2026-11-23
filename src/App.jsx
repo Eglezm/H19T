@@ -1800,14 +1800,14 @@ function TeamPlayView({ codigo, onExit }) {
             <>
               <div style={{ fontSize:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase" }}>Tu salida</div>
               <div style={{ fontSize:16, fontWeight:900, color:D.gold }}>{grupoUnidades.map(u => u.nombre).join(" · ")}</div>
-              <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {miUnidad.hoyoSalida+1} · anotas el score de todos</div>
+              <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {miUnidad.hoyoSalida+1}{miUnidad.horaSalida ? ` · Tee time ${miUnidad.horaSalida}` : ""} · anotas el score de todos</div>
             </>
           ) : (
             <>
               <div style={{ fontSize:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase" }}>Tu unidad</div>
               <div style={{ fontSize:18, fontWeight:900, color:D.gold }}>{miUnidad.nombre}</div>
               {miUnidad.jugadores && miUnidad.jugadores.length>1 && <div style={{ fontSize:11, color:D.textSub }}>{miUnidad.jugadores.map(j=>j.name).join(", ")}</div>}
-              <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {miUnidad.hoyoSalida+1} · HC aplicado {miUnidad.hcAplicado}</div>
+              <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {miUnidad.hoyoSalida+1}{miUnidad.horaSalida ? ` · Tee time ${miUnidad.horaSalida}` : ""} · HC aplicado {miUnidad.hcAplicado}</div>
             </>
           )}
         </Card>
@@ -2082,7 +2082,7 @@ function ScoreRecordView({ torneoId, onExit }) {
           <div style={{ fontSize:11, color:D.textSub, letterSpacing:1, textTransform:"uppercase" }}>Anotando para</div>
           <div style={{ fontSize:18, fontWeight:900, color:D.gold }}>{unidad.nombre}</div>
           {esEquipo && <div style={{ fontSize:11, color:D.textSub }}>{unidad.jugadores.map(j=>j.name).join(", ")}</div>}
-          <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {unidad.hoyoSalida+1} · HC aplicado {unidad.hcAplicado}</div>
+          <div style={{ fontSize:11, color:D.textSub, marginTop:2 }}>Hoyo de salida {unidad.hoyoSalida+1}{unidad.horaSalida ? ` · Tee time ${unidad.horaSalida}` : ""} · HC aplicado {unidad.hcAplicado}</div>
         </Card>
       </div>
 
@@ -2518,6 +2518,7 @@ function AdminTorneoApp({ onExit }) {
 
   // Constructor de grupos de salida
   const [hoyoSel, setHoyoSel] = useState(1);
+  const [horaSel, setHoraSel] = useState(""); // Tee time (HH:MM) del grupo que se está armando; opcional
   const [capturaUnidadId, setCapturaUnidadId] = useState(null);
   // Valores de score "optimistas" (recién enviados a Firebase, antes de que el listener los confirme).
   // Sin esto, tocar +/- muy seguido usaba el score todavía viejo de `torneo` como base y el segundo
@@ -2713,6 +2714,7 @@ function AdminTorneoApp({ onExit }) {
     us.forEach(u => {
       updates[`torneos/${torneoId}/unidades/${u.id}/grupoId`] = null;
       updates[`torneos/${torneoId}/unidades/${u.id}/hoyoSalida`] = null;
+      updates[`torneos/${torneoId}/unidades/${u.id}/horaSalida`] = null;
       updates[`torneos/${torneoId}/unidades/${u.id}/marcaA`] = null;
       updates[`torneos/${torneoId}/unidades/${u.id}/marcadoPor`] = null;
       if (u.codigoGrupo) {
@@ -2794,6 +2796,7 @@ function AdminTorneoApp({ onExit }) {
       const upd = {};
       selUnidades.forEach((uid, i) => {
         upd[`torneos/${torneoId}/unidades/${uid}/hoyoSalida`] = hoyoSel - 1;
+        upd[`torneos/${torneoId}/unidades/${uid}/horaSalida`] = horaSel || null;
         upd[`torneos/${torneoId}/unidades/${uid}/grupoId`] = grupoIdS;
         upd[`torneos/${torneoId}/unidades/${uid}/marcaA`] = null;
         upd[`torneos/${torneoId}/unidades/${uid}/marcadoPor`] = null;
@@ -2804,7 +2807,7 @@ function AdminTorneoApp({ onExit }) {
       upd[`codigos/${codigoS}`] = { torneoId, unidadId: selUnidades[0], porSalida: true };
       Promise.all(Object.entries(upd).map(([path,val]) => set(ref(db, path), val)));
       setSelUnidades([]);
-      if (torneo.pares) {
+      if (torneo.pares && !horaSel) {
         const usadosH = new Set(Object.values(torneo.unidades||{}).filter(u=>u.grupoId).map(u=>u.hoyoSalida));
         usadosH.add(hoyoSel - 1);
         for (let i=0; i<torneo.pares.length; i++) { if (!usadosH.has(i)) { setHoyoSel(i+1); break; } }
@@ -2819,6 +2822,7 @@ function AdminTorneoApp({ onExit }) {
       const yaTieneCodigo = torneo.unidades[uid]?.codigo;
       const codigo = yaTieneCodigo || genCodigo(usados); usados.add(codigo);
       updates[`torneos/${torneoId}/unidades/${uid}/hoyoSalida`] = hoyoSel - 1;
+      updates[`torneos/${torneoId}/unidades/${uid}/horaSalida`] = horaSel || null;
       updates[`torneos/${torneoId}/unidades/${uid}/grupoId`] = grupoId;
       updates[`torneos/${torneoId}/unidades/${uid}/marcaA`] = chain[uid].marcaA;
       updates[`torneos/${torneoId}/unidades/${uid}/marcadoPor`] = chain[uid].marcadoPor;
@@ -2828,13 +2832,17 @@ function AdminTorneoApp({ onExit }) {
     Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)));
     setSelUnidades([]);
     // Avanza automáticamente al siguiente hoyo libre, para no repetir por accidente
-    if (torneo.pares) {
+    if (torneo.pares && !horaSel) {
       const usadosHoyos = new Set(Object.values(torneo.unidades||{}).filter(u=>u.grupoId).map(u=>u.hoyoSalida));
       usadosHoyos.add(hoyoSel - 1);
       let siguiente = null;
       for (let i=0; i<torneo.pares.length; i++) { if (!usadosHoyos.has(i)) { siguiente = i+1; break; } }
       if (siguiente) setHoyoSel(siguiente);
     }
+  };
+
+  const cambiarHoraGrupo = (unidadesDelGrupo, hora) => {
+    unidadesDelGrupo.forEach(u => set(ref(db, `torneos/${torneoId}/unidades/${u.id}/horaSalida`), hora || null));
   };
 
   // Corrige el hoyo de salida de un grupo ya creado (por si se asignó mal)
@@ -3080,7 +3088,7 @@ function AdminTorneoApp({ onExit }) {
     const url = `${window.location.origin}${window.location.pathname}?equipo=${codigo}`;
     const lines = [
       `⛳ *H19T — ${torneo.nombre}*`,
-      `Salida del hoyo *${us[0].hoyoSalida+1}*`,
+      `Salida del hoyo *${us[0].hoyoSalida+1}*${us[0].horaSalida ? ` · Tee time *${us[0].horaSalida}*` : ""}`,
       `Jugadores: ${us.map(u => u.nombre).join(", ")}`,
       ``,
       `Uno de ustedes anota el score de todos con este código: *${codigo}*`,
@@ -3096,7 +3104,7 @@ function AdminTorneoApp({ onExit }) {
       `⛳ *H19T — ${torneo.nombre}*`,
       `Hola equipo *${u.nombre}* 👋`,
       `Integrantes: ${u.jugadores.map(j=>j.name).join(", ")}`,
-      `Salen del hoyo *${u.hoyoSalida+1}*`,
+      `Salen del hoyo *${u.hoyoSalida+1}*${u.horaSalida ? ` · Tee time *${u.horaSalida}*` : ""}`,
       ``,
       marcaA ? `A ustedes les toca anotar el score de: *${marcaA.nombre}*` : "",
       marcaA ? `Desde la app, entren a "Registro de Score", elijan a *${marcaA.nombre}* y escriban ese mismo nombre para confirmar.` : "",
@@ -3480,7 +3488,7 @@ function AdminTorneoApp({ onExit }) {
                     <div style={{ fontSize:13, fontWeight:600 }}>{u.nombre}</div>
                     <div style={{ fontSize:10, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")} · HC aplicado {u.hcAplicado}</div>
                   </div>
-                  {u.grupoId && <div style={{ fontSize:10, color:D.success, fontWeight:700 }}>Hoyo {u.hoyoSalida+1}</div>}
+                  {u.grupoId && <div style={{ fontSize:10, color:D.success, fontWeight:700 }}>Hoyo {u.hoyoSalida+1}{u.horaSalida ? ` · ${u.horaSalida}` : ""}</div>}
                   <button onClick={() => editandoUnidadId===u.id ? cancelarEdicionUnidad() : iniciarEdicionUnidad(u)} style={{ padding:"4px 8px", border:`1px solid ${editandoUnidadId===u.id?D.gold:D.border}`, borderRadius:8, background:editandoUnidadId===u.id?D.goldDim:"transparent", color:editandoUnidadId===u.id?D.gold:D.textSub, fontSize:11, cursor:"pointer" }}>{editandoUnidadId===u.id ? <X size={13}/> : "Editar"}</button>
                   {!u.grupoId && <button onClick={() => eliminarUnidad(u.id)} style={{ padding:"4px 8px", border:`1px solid ${D.danger}44`, borderRadius:8, background:"transparent", color:D.danger, fontSize:11, cursor:"pointer" }}><Trash2 size={14}/></button>}
                 </div>
@@ -3525,6 +3533,7 @@ function AdminTorneoApp({ onExit }) {
     unidadesList.filter(u=>u.grupoId).forEach(u => { (gruposMap[u.grupoId] = gruposMap[u.grupoId]||[]).push(u); });
     const todasAsignadas = sinGrupo.length===0 && unidadesList.length>0;
     const hoyosUsados = new Set(unidadesList.filter(u=>u.grupoId).map(u=>u.hoyoSalida+1));
+    const salidaRepetida = unidadesList.some(u => u.grupoId && u.hoyoSalida+1 === hoyoSel && (u.horaSalida||"") === horaSel);
 
     return (
       <div style={appSt}>
@@ -3552,10 +3561,13 @@ function AdminTorneoApp({ onExit }) {
               </div>
               <div style={{ marginBottom:10 }}>
                 <span style={{ fontSize:12, color:D.textSub, marginRight:8 }}>Hoyo de salida</span>
-                <select value={hoyoSel} onChange={e=>setHoyoSel(parseInt(e.target.value))} style={{ padding:"6px 10px", border:`1px solid ${hoyosUsados.has(hoyoSel)?D.danger:D.border}`, borderRadius:8, background:D.surface, color:D.text, fontSize:13 }}>
-                  {torneo.pares.map((_,i) => <option key={i} value={i+1}>Hoyo {i+1}{hoyosUsados.has(i+1)?" (ya ocupado)":""}</option>)}
+                <select value={hoyoSel} onChange={e=>setHoyoSel(parseInt(e.target.value))} style={{ padding:"6px 10px", border:`1px solid ${salidaRepetida?D.danger:D.border}`, borderRadius:8, background:D.surface, color:D.text, fontSize:13 }}>
+                  {torneo.pares.map((_,i) => <option key={i} value={i+1}>Hoyo {i+1}{hoyosUsados.has(i+1)?" (ya hay grupos)":""}</option>)}
                 </select>
-                {hoyosUsados.has(hoyoSel) && <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:D.danger, marginTop:6 }}><AlertTriangle size={13}/> Ya hay un grupo saliendo del hoyo {hoyoSel}. Verifica que sea correcto antes de continuar.</div>}
+                <span style={{ fontSize:12, color:D.textSub, margin:"0 8px 0 12px" }}>Tee time</span>
+                <input type="time" value={horaSel} onChange={e=>setHoraSel(e.target.value)} style={{ padding:"5px 8px", border:`1px solid ${salidaRepetida?D.danger:D.border}`, borderRadius:8, background:D.surface, color:D.text, fontSize:13 }} />
+                {horaSel && <button onClick={() => setHoraSel("")} style={{ marginLeft:6, fontSize:11, color:D.textSub, background:"none", border:"none", cursor:"pointer" }}>quitar</button>}
+                {salidaRepetida && <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:D.danger, marginTop:6 }}><AlertTriangle size={13}/> Ya hay un grupo saliendo del hoyo {hoyoSel}{horaSel ? ` a las ${horaSel}` : ""}. Verifica que sea correcto antes de continuar.</div>}
               </div>
               {sinGrupo.map((u, idx) => {
                 const pos = selUnidades.indexOf(u.id);
@@ -3581,6 +3593,8 @@ function AdminTorneoApp({ onExit }) {
                   <select value={us[0].hoyoSalida+1} onChange={e=>cambiarHoyoGrupo(us, parseInt(e.target.value))} style={{ padding:"3px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:D.surface, color:D.gold, fontSize:12, fontWeight:700 }}>
                     {torneo.pares.map((_,i) => <option key={i} value={i+1}>Hoyo {i+1}</option>)}
                   </select>
+                  <span style={{ fontSize:11, color:D.gold, fontWeight:700, marginLeft:6 }}>Tee time:</span>
+                  <input type="time" value={us[0].horaSalida || ""} onChange={e=>cambiarHoraGrupo(us, e.target.value)} style={{ padding:"2px 6px", border:`1px solid ${D.border}`, borderRadius:8, background:D.surface, color:D.gold, fontSize:12, fontWeight:700 }} />
                 </div>
                 <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:6 }}>
                   {us.map((u,i) => (
@@ -4017,7 +4031,7 @@ function AdminTorneoApp({ onExit }) {
               const marcaA = torneo.unidades?.[u.marcaA];
               return (
               <div key={u.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:idx<unidadesList.length-1?`1px solid ${D.border}`:"none" }}>
-                <div style={{ width:56, fontSize:11, color:D.textSub, fontWeight:700 }}>{u.hoyoSalida!=null ? `Hoyo ${u.hoyoSalida+1}` : "Sin hoyo"}</div>
+                <div style={{ width:56, fontSize:11, color:D.textSub, fontWeight:700 }}>{u.hoyoSalida!=null ? `Hoyo ${u.hoyoSalida+1}${u.horaSalida ? ` · ${u.horaSalida}` : ""}` : "Sin hoyo"}</div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:700 }}>{u.nombre}</div>
                   <div style={{ fontSize:11, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>
