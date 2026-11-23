@@ -38,6 +38,7 @@ const CAMPOS = {
   lavista:   { nombre: "La Vista Country Club",          pares: [4,3,4,5,4,4,3,4,5,5,4,3,4,4,5,4,3,4] },
   campestre: { nombre: "Club Campestre de Puebla",       pares: [4,3,5,4,4,4,4,3,5,4,4,5,3,4,5,4,3,4] },
   soltepec:  { nombre: "Club de Golf Hacienda Soltepec", pares: [4,4,5,3,5,3,4,4,3,4,4,5,3,5,3,4,4,3] },
+  elcristo:  { nombre: "El Cristo Golf & Country Club",      pares: [5,3,4,4,4,4,3,4,5,5,3,4,4,4,5,4,3,4] },
   otro:      { nombre: "Otro campo",                     pares: null },
 };
 
@@ -2462,6 +2463,8 @@ function AdminTorneoApp({ onExit }) {
   const [selJugadores, setSelJugadores] = useState(new Set());
   const [nombreEquipo, setNombreEquipo] = useState("");
   const [editandoUnidadId, setEditandoUnidadId] = useState(null);
+  const [editHcs, setEditHcs] = useState({}); // HC propio de este torneo por jugador (id -> texto), al editar una unidad
+  const [confirmCampo, setConfirmCampo] = useState(null); // clave del campo pendiente de confirmar
   const [editSelJugadores, setEditSelJugadores] = useState(new Set());
   const [editNombre, setEditNombre] = useState("");
   const [confirmDisolver, setConfirmDisolver] = useState(null);
@@ -2692,11 +2695,17 @@ function AdminTorneoApp({ onExit }) {
     setEditandoUnidadId(u.id);
     setEditSelJugadores(new Set(u.jugadores.map(j=>j.id)));
     setEditNombre(u.nombre);
+    setEditHcs(Object.fromEntries(u.jugadores.map(j => [j.id, String(j.hc ?? 0)])));
   };
-  const cancelarEdicionUnidad = () => { setEditandoUnidadId(null); setEditSelJugadores(new Set()); setEditNombre(""); };
+  const cancelarEdicionUnidad = () => { setEditandoUnidadId(null); setEditSelJugadores(new Set()); setEditNombre(""); setEditHcs({}); };
   const guardarEdicionUnidad = () => {
     if (!torneo || !editandoUnidadId) return;
-    const jugadores = dir.filter(p => editSelJugadores.has(p.id)).map(p => ({ id:p.id, name:p.name, hc:p.hc }));
+    // El HC puede ajustarse solo para este torneo (según el campo); el directorio de jugadores no cambia.
+    const jugadores = dir.filter(p => editSelJugadores.has(p.id)).map(p => {
+      const txt = editHcs[p.id];
+      const hcEd = txt !== undefined && txt !== "" && Number.isFinite(parseInt(txt, 10)) ? Math.max(0, parseInt(txt, 10)) : p.hc;
+      return { id:p.id, name:p.name, hc:hcEd };
+    });
     if (jugadores.length !== tamañoModalidad) return;
     const hcAplicado = calcHcAplicado(jugadores, torneo.hcPercent, torneo.pares.length);
     const nombre = tamañoModalidad===1 ? jugadores[0].name : (editNombre.trim() || torneo.unidades[editandoUnidadId].nombre);
@@ -2780,6 +2789,32 @@ function AdminTorneoApp({ onExit }) {
     Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)))
       .then(() => { setGuardadoOk(`Torneo ahora de ${n} hoyos`); setTimeout(()=>setGuardadoOk(""), 2500); });
     setConfirmHoyos(null);
+  };
+
+  // Cambia el campo del torneo (útil cuando se arma con anticipación y el campo se define al final).
+  // Reemplaza los pares por los del campo nuevo (respetando el nº de hoyos). Los scores, grupos y
+  // códigos no se tocan; los pares editados a mano en este torneo se pierden.
+  const aplicarCambioCampo = (key) => {
+    if (!torneo || !CAMPOS[key] || key === torneo.campo) { setConfirmCampo(null); return; }
+    const n = torneo.pares.length;
+    const bp = CAMPOS[key].pares || Array(18).fill(4);
+    const paresNuevos = Array.from({ length: n }, (_, i) => bp[i] ?? 4);
+    const base = `torneos/${torneoId}`;
+    const updates = { [`${base}/campo`]: key, [`${base}/pares`]: paresNuevos };
+    // O'Yes: los hoyos con premio no pueden exceder los hoyos físicos del campo nuevo.
+    const maxFisico = (CAMPOS[key]?.nueveHoyos && n === 18) ? 9 : n;
+    if (torneo.oyes?.holes) {
+      const hs = torneo.oyes.holes.filter(h => h <= maxFisico);
+      if (hs.length !== torneo.oyes.holes.length) updates[`${base}/oyes/holes`] = hs.length ? hs : null;
+    }
+    const pe = torneo.oyes?.premiosEspeciales?.hoyo118?.holes;
+    if (pe) {
+      const hs = pe.filter(h => h <= maxFisico);
+      if (hs.length !== pe.length) updates[`${base}/oyes/premiosEspeciales/hoyo118/holes`] = hs.length ? hs : null;
+    }
+    Promise.all(Object.entries(updates).map(([path,val]) => set(ref(db, path), val)))
+      .then(() => { setGuardadoOk(`Campo cambiado a ${CAMPOS[key].nombre}`); setTimeout(()=>setGuardadoOk(""), 2500); });
+    setConfirmCampo(null);
   };
 
   const toggleUnidadGrupo = (uid) => {
@@ -3506,9 +3541,16 @@ function AdminTorneoApp({ onExit }) {
                         <div style={{ width:18,height:18,borderRadius:5,border:`2px solid ${editSelJugadores.has(p.id)?D.gold:D.border}`,background:editSelJugadores.has(p.id)?D.goldDim:"transparent",color:D.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700 }}>{editSelJugadores.has(p.id) && <Check size={13}/>}</div>
                         <Avatar name={p.name} id={p.id} size={24} />
                         <div style={{ flex:1, fontSize:12, fontWeight:600 }}>{p.name}</div>
-                        <div style={{ fontSize:10, color:D.gold }}>HC {p.hc}</div>
+                        {editSelJugadores.has(p.id) ? (
+                          <div onClick={e=>e.stopPropagation()} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                            <span style={{ fontSize:10, color:D.gold, fontWeight:700 }}>HC</span>
+                            <input type="number" inputMode="numeric" min="0" value={editHcs[p.id] !== undefined ? editHcs[p.id] : String(p.hc)} onChange={e=>setEditHcs(h => ({ ...h, [p.id]: e.target.value }))}
+                              style={{ width:52, padding:"4px 6px", border:`1px solid ${D.gold}`, borderRadius:8, background:D.surface, color:D.gold, fontSize:13, fontWeight:700, textAlign:"center", boxSizing:"border-box" }} />
+                          </div>
+                        ) : <div style={{ fontSize:10, color:D.gold }}>HC {p.hc}</div>}
                       </div>
                     ))}
+                    <div style={{ fontSize:10, color:D.textDim, marginTop:8 }}>El HC editado aplica solo a este torneo (no cambia el directorio de jugadores).</div>
                     <div style={{ display:"flex", gap:8, marginTop:10 }}>
                       <button onClick={guardarEdicionUnidad} disabled={editSelJugadores.size!==tamañoModalidad} style={{ flex:1, padding:8, border:"none", borderRadius:8, background:editSelJugadores.size!==tamañoModalidad?D.border:D.gold, color:editSelJugadores.size!==tamañoModalidad?D.textDim:"#0A0E14", fontSize:12, fontWeight:700, cursor:editSelJugadores.size!==tamañoModalidad?"default":"pointer" }}>Guardar cambios</button>
                       <button onClick={cancelarEdicionUnidad} style={{ flex:1, padding:8, border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Cancelar</button>
@@ -3540,6 +3582,28 @@ function AdminTorneoApp({ onExit }) {
         <Header title={torneo.nombre} />
         <div style={{ padding:"12px 12px" }}>
           <TabBar tabs={adminTabs} active="grupos" onChange={setScreen} />
+
+          <Card>
+            <SLabel>Campo de golf</SLabel>
+            <select value={confirmCampo || torneo.campo} onChange={e => setConfirmCampo(e.target.value === torneo.campo ? null : e.target.value)} style={{ width:"100%", padding:"9px 10px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, fontWeight:600 }}>
+              {Object.entries(CAMPOS).map(([k, c]) => <option key={k} value={k}>{c.nombre}</option>)}
+            </select>
+            {guardadoOk && <div style={{ display:"flex", alignItems:"center", gap:6, color:D.success, fontSize:12, fontWeight:700, marginTop:8 }}><Check size={14}/> {guardadoOk}</div>}
+            {confirmCampo && (() => {
+              const hayScores = Object.values(torneo.unidades||{}).some(u => (u.scores||[]).some(v => v !== null && v !== undefined));
+              return (
+                <div style={{ marginTop:10, padding:10, borderRadius:10, background:D.redBg, border:`1px solid ${D.danger}55` }}>
+                  <div style={{ fontSize:12, color:D.danger, fontWeight:700, marginBottom:8 }}>
+                    ¿Cambiar a {CAMPOS[confirmCampo].nombre}? Se reemplazan los pares por los de ese campo (los pares editados a mano se pierden). Grupos, códigos y HC no cambian.{hayScores ? " Ya hay scores capturados: se conservan, pero el vs par cambiará según los nuevos pares." : ""}
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={() => aplicarCambioCampo(confirmCampo)} style={{ flex:1, padding:8, border:"none", borderRadius:8, background:D.danger, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>Sí, cambiar campo</button>
+                    <button onClick={() => setConfirmCampo(null)} style={{ flex:1, padding:8, border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Cancelar</button>
+                  </div>
+                </div>
+              );
+            })()}
+          </Card>
 
           {sinGrupo.length>0 && (
             <Card>
