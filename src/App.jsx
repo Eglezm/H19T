@@ -390,7 +390,9 @@ function calcHcAplicado(jugadores, hcPercent, nHoles = 18) {
   const hcs = jugadores.map(j => j.hc || 0);
   const avg = hcs.reduce((a,b) => a+b, 0) / hcs.length;
   const factorHoyos = nHoles === 9 ? 0.5 : 1;
-  return Math.round(avg * (hcPercent/100) * factorHoyos);
+  // Redondeo: la mitad (.5) baja — 9.6 a 10.5 → 10, 10.6 a 11.5 → 11.
+  const x = avg * (hcPercent/100) * factorHoyos;
+  return Math.max(0, Math.ceil(x - 0.5 - 1e-9)) + 0;
 }
 
 // Construye la cadena de marcaje: cada unidad anota a la siguiente, en círculo
@@ -2846,10 +2848,10 @@ function AdminTorneoApp({ onExit }) {
   };
 
   // Cambia el % de HC del torneo y recalcula el HC aplicado de todas las unidades (scores intactos).
-  const aplicarHcPercent = (pct) => {
+  const aplicarHcPercent = (pct, forzar = false) => {
     if (!torneo) return;
     const v = Math.max(0, Math.min(100, Math.round(Number(pct))));
-    if (!Number.isFinite(v) || v === Number(torneo.hcPercent)) { setHcPctEdit(null); return; }
+    if (!Number.isFinite(v) || (!forzar && v === Number(torneo.hcPercent))) { setHcPctEdit(null); return; }
     const base = `torneos/${torneoId}`;
     const updates = { [`${base}/hcPercent`]: v };
     Object.values(torneo.unidades||{}).forEach(u => {
@@ -3483,7 +3485,8 @@ function AdminTorneoApp({ onExit }) {
               <button disabled={hcPctEdit===null || hcPctEdit==="" || Number(hcPctEdit)===Number(torneo.hcPercent)} onClick={() => aplicarHcPercent(hcPctEdit)}
                 style={{ marginLeft:"auto", padding:"9px 16px", border:"none", borderRadius:10, background:(hcPctEdit===null || hcPctEdit==="" || Number(hcPctEdit)===Number(torneo.hcPercent))?D.border:D.gold, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>Aplicar</button>
             </div>
-            <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>Se puede cambiar en cualquier momento: el HC aplicado de todas las unidades se recalcula solo y los scores no se tocan. Con 0% se pueden usar las ventajas manuales.</div>
+            <button onClick={() => aplicarHcPercent(torneo.hcPercent, true)} style={{ marginTop:8, padding:"7px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Recalcular HC aplicado de todas las unidades</button>
+            <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>El HC aplicado se redondea así: de 9.6 a 10.5 queda en 10, de 10.6 a 11.5 queda en 11 (el .5 baja). Se puede cambiar en cualquier momento: el HC aplicado de todas las unidades se recalcula solo y los scores no se tocan. Con 0% se pueden usar las ventajas manuales.</div>
           </Card>
           <Card>
             <SLabel>Ventajas manuales por jugador o equipo</SLabel>
