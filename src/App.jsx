@@ -2353,7 +2353,7 @@ export default function H19T() {
     const unsub = onValue(tRef, snap => {
       if (snap.exists()) {
         const data = snap.val();
-        setTorneosActivos(Object.entries(data).filter(([,t]) => t.status === "en_juego").map(([id,t]) => ({ id, nombre:t.nombre, campo:t.campo })));
+        setTorneosActivos(Object.entries(data).filter(([,t]) => t.status === "en_juego").map(([id,t]) => ({ id, nombre:t.nombre, campo:t.campo, createdAt:t.createdAt||0 })).sort((a,b) => b.createdAt - a.createdAt));
       } else setTorneosActivos([]);
     });
     return () => unsub();
@@ -2362,7 +2362,8 @@ export default function H19T() {
   // Encamina según el botón presionado: si hay un solo torneo en juego entra directo;
   // si hay varios, muestra la lista para elegir; si no hay ninguno, deja elegir manualmente.
   const iniciarFlujo = (tipo) => {
-    if (torneosActivos.length === 1) { seleccionarTorneoPara(tipo, torneosActivos[0].id); return; }
+    // Ver torneo en vivo siempre muestra la lista (para elegir cuál), aunque haya uno solo
+    if (tipo !== "spectator" && torneosActivos.length === 1) { seleccionarTorneoPara(tipo, torneosActivos[0].id); return; }
     setPickFor(tipo);
     setMode("torneo-pick");
   };
@@ -2385,7 +2386,7 @@ export default function H19T() {
       <div style={{ ...appStyle, display:"flex", flexDirection:"column", padding:24, gap:14 }}>
         <div style={{ textAlign:"center" }}>{icono}</div>
         <div style={{ fontSize:18, fontWeight:900, textAlign:"center" }}>{titulo}</div>
-        <div style={{ fontSize:13, color:D.textSub, textAlign:"center", marginBottom:4 }}>{torneosActivos.length>0 ? "Elige el torneo" : "No hay torneos en juego en este momento"}</div>
+        <div style={{ fontSize:13, color:D.textSub, textAlign:"center", marginBottom:4 }}>{torneosActivos.length>0 ? "Elige el torneo" : "No hay torneos activos en este momento"}</div>
         {torneosActivos.length>0 && (
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {torneosActivos.map(t => (
