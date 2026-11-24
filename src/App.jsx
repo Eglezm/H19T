@@ -387,6 +387,11 @@ function nombreConJugadores(unidad) {
 // Calcula el HC aplicado de una unidad competidora (jugador o equipo)
 // Handicap aplicado: promedio de los HC de la unidad × porcentaje del torneo. A 9 hoyos se aplica
 // el 50% (ej. HC 10 a 18 hoyos → 5 a 9 hoyos). nHoles = 18 por omisión (comportamiento anterior).
+// Lee un HC escrito por el usuario: acepta decimales (10.5 o 10,5). Devuelve null si no es válido.
+function leerHc(txt) {
+  const n = parseFloat(String(txt ?? "").replace(",", "."));
+  return Number.isFinite(n) ? Math.max(0, Math.round(n * 10) / 10) : null;
+}
 function calcHcAplicado(jugadores, hcPercent, nHoles = 18) {
   const hcs = jugadores.map(j => j.hc || 0);
   const avg = hcs.reduce((a,b) => a+b, 0) / hcs.length;
@@ -2662,7 +2667,7 @@ function AdminTorneoApp({ onExit }) {
   const saveDir = (newPlayers, newNidVal) => set(ref(db, "h19tDirectorio"), { players:newPlayers, nextId:newNidVal||nid });
   const addPlayer = () => {
     const name = newName.trim(); if (!name) return;
-    const hc = Math.max(0, parseInt(newHC)||0);
+    const hc = leerHc(newHC) ?? 0;
     saveDir([...dir, {id:nid, name, hc}], nid+1); setNid(nid+1); setNewName(""); setNewHC("");
   };
   const removePlayer = (id) => saveDir(dir.filter(p=>p.id!==id));
@@ -2734,7 +2739,7 @@ function AdminTorneoApp({ onExit }) {
     // El HC puede ajustarse solo para este torneo (según el campo); el directorio de jugadores no cambia.
     const jugadores = dir.filter(p => editSelJugadores.has(p.id)).map(p => {
       const txt = editHcs[p.id];
-      const hcEd = txt !== undefined && txt !== "" && Number.isFinite(parseInt(txt, 10)) ? Math.max(0, parseInt(txt, 10)) : p.hc;
+      const hcEd = txt !== undefined && txt !== "" && leerHc(txt) !== null ? leerHc(txt) : p.hc;
       return { id:p.id, name:p.name, hc:hcEd };
     });
     if (jugadores.length !== tamañoModalidad) return;
@@ -3284,8 +3289,8 @@ function AdminTorneoApp({ onExit }) {
                 {editingHC===p.id ? (
                   <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
                     <span style={{ fontSize:11, color:D.gold }}>HC</span>
-                    <input type="number" min="0" max="54" defaultValue={p.hc} autoFocus
-                      onBlur={e => { const v=Math.max(0,parseInt(e.target.value)||0); saveDir(dir.map(d=>d.id===p.id?{...d,hc:v}:d)); setEditingHC(null); }}
+                    <input type="number" inputMode="decimal" step="0.1" min="0" max="54" defaultValue={p.hc} autoFocus
+                      onBlur={e => { const v=leerHc(e.target.value) ?? 0; saveDir(dir.map(d=>d.id===p.id?{...d,hc:v}:d)); setEditingHC(null); }}
                       style={{ width:56, padding:"4px 8px", border:`1px solid ${D.gold}`, borderRadius:8, background:D.surface, color:D.gold, fontSize:13, fontWeight:700, textAlign:"center" }} />
                   </div>
                 ) : (
@@ -3307,7 +3312,7 @@ function AdminTorneoApp({ onExit }) {
           <SLabel>Agregar jugador</SLabel>
           <div style={{ display:"flex", gap:8 }}>
             <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Nombre" style={{ flex:1, padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14 }} />
-            <input value={newHC} onChange={e=>setNewHC(e.target.value)} type="number" min="0" max="54" placeholder="HC" style={{ width:56, padding:"10px 8px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, textAlign:"center" }} />
+            <input value={newHC} onChange={e=>setNewHC(e.target.value)} type="number" inputMode="decimal" step="0.1" min="0" max="54" placeholder="HC" style={{ width:56, padding:"10px 8px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, textAlign:"center" }} />
             <button onClick={addPlayer} style={{ padding:"10px 14px", border:`1px solid ${D.gold}`, borderRadius:10, background:D.goldDim, color:D.gold, fontSize:13, fontWeight:700, cursor:"pointer" }}>+ Agregar</button>
           </div>
         </Card>
@@ -3615,7 +3620,7 @@ function AdminTorneoApp({ onExit }) {
                         {editSelJugadores.has(p.id) ? (
                           <div onClick={e=>e.stopPropagation()} style={{ display:"flex", alignItems:"center", gap:4 }}>
                             <span style={{ fontSize:10, color:D.gold, fontWeight:700 }}>HC</span>
-                            <input type="number" inputMode="numeric" min="0" value={editHcs[p.id] !== undefined ? editHcs[p.id] : String(p.hc)} onChange={e=>setEditHcs(h => ({ ...h, [p.id]: e.target.value }))}
+                            <input type="number" inputMode="decimal" step="0.1" min="0" value={editHcs[p.id] !== undefined ? editHcs[p.id] : String(p.hc)} onChange={e=>setEditHcs(h => ({ ...h, [p.id]: e.target.value }))}
                               style={{ width:52, padding:"4px 6px", border:`1px solid ${D.gold}`, borderRadius:8, background:D.surface, color:D.gold, fontSize:13, fontWeight:700, textAlign:"center", boxSizing:"border-box" }} />
                           </div>
                         ) : <div style={{ fontSize:10, color:D.gold }}>HC {p.hc}</div>}
