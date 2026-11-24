@@ -2496,6 +2496,7 @@ function AdminTorneoApp({ onExit }) {
 
   // Constructor de unidades
   const [selJugadores, setSelJugadores] = useState(new Set());
+  const [busqJug, setBusqJug] = useState(""); // búsqueda en la lista de jugadores disponibles
   const [nombreEquipo, setNombreEquipo] = useState("");
   const [editandoUnidadId, setEditandoUnidadId] = useState(null);
   const [editHcs, setEditHcs] = useState({}); // HC propio de este torneo por jugador (id -> texto), al editar una unidad
@@ -2709,20 +2710,37 @@ function AdminTorneoApp({ onExit }) {
   const toggleJugadorSel = (id) => {
     const s = new Set(selJugadores);
     s.has(id) ? s.delete(id) : s.add(id);
-    if (s.size > tamañoModalidad) return; // no exceder tamaño de modalidad
+    if (tamañoModalidad > 1 && s.size > tamañoModalidad) return; // en equipos no exceder el tamaño; en individual se pueden marcar varios
     setSelJugadores(s);
   };
 
+  // Siguiente número libre para el id de unidad (U1, U2…), aunque se hayan eliminado unidades
+  const siguienteNumUnidad = () => Math.max(0, ...Object.keys(torneo.unidades||{}).map(k => parseInt(String(k).replace(/\D/g, ""), 10) || 0)) + 1;
+
   const crearUnidad = () => {
-    if (!torneo || selJugadores.size !== tamañoModalidad) return;
+    if (!torneo) return;
+    if (tamañoModalidad === 1) {
+      // Individual: crea una unidad por cada jugador marcado (de una sola vez)
+      const elegidos = dir.filter(p => selJugadores.has(p.id));
+      if (elegidos.length === 0) return;
+      let n = siguienteNumUnidad();
+      elegidos.forEach(pl => {
+        const jug = [{ id:pl.id, name:pl.name, hc:pl.hc }];
+        const uidI = `U${n++}`;
+        set(ref(db, `torneos/${torneoId}/unidades/${uidI}`), { id:uidI, nombre:pl.name, jugadores:jug, hcAplicado:calcHcAplicado(jug, torneo.hcPercent, torneo.pares.length), hoyoSalida:null, grupoId:null, marcaA:null, marcadoPor:null, codigo:null, scores:Array(torneo.nHoles).fill(null) });
+      });
+      setSelJugadores(new Set()); setBusqJug("");
+      return;
+    }
+    if (selJugadores.size !== tamañoModalidad) return;
     const jugadores = dir.filter(p => selJugadores.has(p.id)).map(p => ({ id:p.id, name:p.name, hc:p.hc }));
     const hcAplicado = calcHcAplicado(jugadores, torneo.hcPercent, torneo.pares.length);
     const existentes = Object.keys(torneo.unidades||{}).length;
-    const uid = `U${existentes+1}`;
+    const uid = `U${siguienteNumUnidad()}`;
     const nombre = tamañoModalidad===1 ? jugadores[0].name : (nombreEquipo.trim() || `Equipo ${existentes+1}`);
     const unidad = { id:uid, nombre, jugadores, hcAplicado, hoyoSalida:null, grupoId:null, marcaA:null, marcadoPor:null, codigo:null, scores:Array(torneo.nHoles).fill(null) };
     set(ref(db, `torneos/${torneoId}/unidades/${uid}`), unidad);
-    setSelJugadores(new Set()); setNombreEquipo("");
+    setSelJugadores(new Set()); setNombreEquipo(""); setBusqJug("");
   };
 
   const eliminarUnidad = (uid) => remove(ref(db, `torneos/${torneoId}/unidades/${uid}`));
@@ -3566,15 +3584,49 @@ function AdminTorneoApp({ onExit }) {
           </Card>
           <Card>
             <SLabel>Jugadores disponibles ({disponibles.length})</SLabel>
-            {disponibles.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Todos los jugadores del directorio ya están asignados</div>}
-            {disponibles.map((p, idx) => (
-              <div key={p.id} onClick={() => toggleJugadorSel(p.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:idx<disponibles.length-1?`1px solid ${D.border}`:"none", cursor:"pointer" }}>
-                <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${selJugadores.has(p.id)?D.gold:D.border}`,background:selJugadores.has(p.id)?D.goldDim:"transparent",color:D.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700 }}>{selJugadores.has(p.id) && <Check size={13}/>}</div>
-                <Avatar name={p.name} id={p.id} size={28} />
-                <div style={{ flex:1, fontSize:13, fontWeight:600 }}>{p.name}</div>
-                <div style={{ fontSize:11, color:D.gold }}>HC {p.hc}</div>
-              </div>
-            ))}
+            {(() => {
+              const norm = (t) => String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+              const q = norm(busqJug.trim());
+              const ordenados = disponibles.slice().sort((a,b) => a.name.localeCompare(b.name, "es"));
+              const visibles = q ? ordenados.filter(p => norm(p.name).includes(q)) : ordenados;
+              const elegidos = dir.filter(p => selJugadores.has(p.id));
+              return (
+                <>
+                  <div style={{ position:"relative", marginBottom:8 }}>
+                    <input value={busqJug} onChange={e=>setBusqJug(e.target.value)} placeholder="Buscar jugador por nombre…"
+                      style={{ width:"100%", padding:"10px 34px 10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box" }} />
+                    {busqJug && <button onClick={() => setBusqJug("")} style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", border:"none", background:"transparent", color:D.textSub, cursor:"pointer", padding:6 }}><X size={16}/></button>}
+                  </div>
+                  {elegidos.length > 0 && (
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8, padding:8, borderRadius:10, background:D.goldDim, border:`1px solid ${D.gold}55` }}>
+                      {elegidos.map(p => (
+                        <span key={p.id} onClick={() => toggleJugadorSel(p.id)} style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"4px 8px", borderRadius:14, background:D.gold, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>{p.name} <X size={12}/></span>
+                      ))}
+                      <button onClick={() => setSelJugadores(new Set())} style={{ marginLeft:"auto", padding:"4px 8px", border:"none", background:"transparent", color:D.textSub, fontSize:11, textDecoration:"underline", cursor:"pointer" }}>Limpiar</button>
+                    </div>
+                  )}
+                  {tamañoModalidad===1 && visibles.length>0 && (
+                    <div style={{ display:"flex", gap:8, marginBottom:6 }}>
+                      <button onClick={() => { const s2 = new Set(selJugadores); visibles.forEach(p => s2.add(p.id)); setSelJugadores(s2); }} style={{ padding:"6px 10px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:11, cursor:"pointer" }}>Marcar {q ? "los que se ven" : "todos"} ({visibles.length})</button>
+                    </div>
+                  )}
+                  {disponibles.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Todos los jugadores del directorio ya están asignados</div>}
+                  {disponibles.length>0 && visibles.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Sin resultados para “{busqJug}”</div>}
+                  <div style={{ maxHeight:"46vh", overflowY:"auto", WebkitOverflowScrolling:"touch", border:`1px solid ${D.border}`, borderRadius:10, display:visibles.length?"block":"none" }}>
+                    {visibles.map((p, idx) => {
+                      const on = selJugadores.has(p.id);
+                      return (
+                        <div key={p.id} onClick={() => toggleJugadorSel(p.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 10px", borderBottom:idx<visibles.length-1?`1px solid ${D.border}`:"none", cursor:"pointer", background:on?D.goldDim:"transparent" }}>
+                          <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${on?D.gold:D.border}`,background:on?D.gold:"transparent",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{on && <Check size={13} strokeWidth={3}/>}</div>
+                          <div style={{ flex:1, fontSize:13, fontWeight:600 }}>{p.name}</div>
+                          <div style={{ fontSize:11, color:D.gold }}>HC {p.hc}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
           </Card>
           {tamañoModalidad>1 && (
             <Card>
@@ -3583,8 +3635,8 @@ function AdminTorneoApp({ onExit }) {
                 style={{ width:"100%", padding:"10px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:D.surface, color:D.text, fontSize:14, boxSizing:"border-box" }} />
             </Card>
           )}
-          <Btn onClick={crearUnidad} disabled={selJugadores.size!==tamañoModalidad}>
-            {selJugadores.size}/{tamañoModalidad} seleccionados — Crear unidad
+          <Btn onClick={crearUnidad} disabled={tamañoModalidad===1 ? selJugadores.size===0 : selJugadores.size!==tamañoModalidad}>
+            {tamañoModalidad===1 ? `${selJugadores.size} seleccionado${selJugadores.size===1?"":"s"} — Crear ${selJugadores.size===1?"1 unidad":selJugadores.size+" unidades"}` : `${selJugadores.size}/${tamañoModalidad} seleccionados — Crear unidad`}
           </Btn>
 
           <Card style={{ marginTop:16 }}>
