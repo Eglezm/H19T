@@ -11,6 +11,7 @@ import {
   Image as ImageIcon, Building2, Handshake,
 } from "lucide-react";
 import SponsorStrip from "./SponsorStrip";
+import { sponsors as catalogoPatrocinadores } from "./sponsors";
 
 // ─── FIREBASE ──────────────────────────────────────
 // Usa el mismo proyecto de Firebase que H19 Golf (misma cuenta), pero TODOS
@@ -390,9 +391,9 @@ function calcHcAplicado(jugadores, hcPercent, nHoles = 18) {
   const hcs = jugadores.map(j => j.hc || 0);
   const avg = hcs.reduce((a,b) => a+b, 0) / hcs.length;
   const factorHoyos = nHoles === 9 ? 0.5 : 1;
-  // Redondeo: la mitad (.5) baja — 9.6 a 10.5 → 10, 10.6 a 11.5 → 11.
+  // Redondeo normal: el .5 sube — 9.5 a 10.4 → 10, 10.5 a 11.4 → 11.
   const x = avg * (hcPercent/100) * factorHoyos;
-  return Math.max(0, Math.ceil(x - 0.5 - 1e-9)) + 0;
+  return Math.max(0, Math.floor(x + 0.5 + 1e-9)) + 0;
 }
 
 // Construye la cadena de marcaje: cada unidad anota a la siguiente, en círculo
@@ -1556,7 +1557,7 @@ function SpectatorTorneoView({ torneoId, vistaInicial = "todo", onExit }) {
       <div style={tvMode
         ? { position:"absolute", left:0, right:0, bottom:0, height:TV_STRIP_H, boxSizing:"border-box", zIndex:20, display:"flex", alignItems:"center", overflow:"hidden", background:"rgba(255,255,255,0.92)", borderTop:`1px solid ${D.border}` }
         : { flexShrink:0, position:"sticky", bottom:0, zIndex:20, background:"rgba(255,255,255,0.92)", backdropFilter:GLASS_BLUR_HEADER, WebkitBackdropFilter:GLASS_BLUR_HEADER, borderTop:`1px solid ${D.border}` }}>
-        <SponsorStrip big={tvMode} />
+        <SponsorStrip big={tvMode} torneo={torneo} />
       </div>
     </div>
   );
@@ -3105,6 +3106,19 @@ function AdminTorneoApp({ onExit }) {
     setConfirmEliminarLogo(null);
   };
 
+  // Patrocinadores del catálogo (public/logos + sponsors.js) que usa ESTE torneo.
+  // Sin personalizar (patrocinadoresPers vacío) se muestran todos, igual que antes.
+  const patrocinadoresActivos = () => new Set(torneo?.patrocinadoresPers ? Object.keys(torneo.patrocinadoresSel || {}) : catalogoPatrocinadores.map(s => s.id));
+  const guardarPatrocinadoresCatalogo = (ids) => {
+    set(ref(db, `torneos/${torneoId}/patrocinadoresPers`), true);
+    set(ref(db, `torneos/${torneoId}/patrocinadoresSel`), ids.size ? Object.fromEntries([...ids].map(i => [i, true])) : null);
+  };
+  const toggleCatalogoPatrocinador = (id) => {
+    const ids = patrocinadoresActivos();
+    if (ids.has(id)) ids.delete(id); else ids.add(id);
+    guardarPatrocinadoresCatalogo(ids);
+  };
+
   const iniciarTorneo = () => { set(ref(db, `torneos/${torneoId}/status`), "en_juego"); };
 
   // El admin puede corregir/capturar el score de CUALQUIER unidad, en cualquier hoyo.
@@ -3486,7 +3500,7 @@ function AdminTorneoApp({ onExit }) {
                 style={{ marginLeft:"auto", padding:"9px 16px", border:"none", borderRadius:10, background:(hcPctEdit===null || hcPctEdit==="" || Number(hcPctEdit)===Number(torneo.hcPercent))?D.border:D.gold, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>Aplicar</button>
             </div>
             <button onClick={() => aplicarHcPercent(torneo.hcPercent, true)} style={{ marginTop:8, padding:"7px 12px", border:`1px solid ${D.border}`, borderRadius:10, background:"transparent", color:D.textSub, fontSize:12, cursor:"pointer" }}>Recalcular HC aplicado de todas las unidades</button>
-            <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>El HC aplicado se redondea así: de 9.6 a 10.5 queda en 10, de 10.6 a 11.5 queda en 11 (el .5 baja). Se puede cambiar en cualquier momento: el HC aplicado de todas las unidades se recalcula solo y los scores no se tocan. Con 0% se pueden usar las ventajas manuales.</div>
+            <div style={{ fontSize:10, color:D.textDim, marginTop:6 }}>El HC aplicado se redondea así: de 9.5 a 10.4 queda en 10, de 10.5 a 11.4 queda en 11 (el .5 sube). Se puede cambiar en cualquier momento: el HC aplicado de todas las unidades se recalcula solo y los scores no se tocan. Con 0% se pueden usar las ventajas manuales.</div>
           </Card>
           <Card>
             <SLabel>Ventajas manuales por jugador o equipo</SLabel>
@@ -4082,10 +4096,39 @@ function AdminTorneoApp({ onExit }) {
             </div>
           </Card>
 
-          {/* Patrocinadores */}
+          {/* Patrocinadores del catálogo */}
           <Card>
-            <SLabel><Handshake size={13}/> Patrocinadores</SLabel>
-            <div style={{ fontSize:11, color:D.textSub, marginBottom:10 }}>Aparecen en una franja debajo del encabezado, tanto en la vista compacta como en pantalla completa.</div>
+            <SLabel><Handshake size={13}/> Patrocinadores de este torneo</SLabel>
+            <div style={{ fontSize:11, color:D.textSub, marginBottom:10 }}>Marca los logos que se mostrarán en la franja de este torneo. Cada torneo guarda su propia selección.</div>
+            {(() => {
+              const activos = patrocinadoresActivos();
+              const bonito = (id) => id.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              return (
+                <>
+                  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                    <button onClick={() => guardarPatrocinadoresCatalogo(new Set(catalogoPatrocinadores.map(s => s.id)))} style={{ flex:1, padding:"7px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:11, cursor:"pointer" }}>Marcar todos</button>
+                    <button onClick={() => guardarPatrocinadoresCatalogo(new Set())} style={{ flex:1, padding:"7px 8px", border:`1px solid ${D.border}`, borderRadius:8, background:"transparent", color:D.textSub, fontSize:11, cursor:"pointer" }}>Quitar todos</button>
+                  </div>
+                  <div style={{ fontSize:11, color:D.gold, fontWeight:700, marginBottom:4 }}>{activos.size} de {catalogoPatrocinadores.length} seleccionados</div>
+                  {catalogoPatrocinadores.map(sp => {
+                    const on = activos.has(sp.id);
+                    return (
+                      <div key={sp.id} onClick={() => toggleCatalogoPatrocinador(sp.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:`1px solid ${D.border}`, cursor:"pointer" }}>
+                        <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${on?D.gold:D.border}`, background:on?D.gold:"transparent", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{on && <Check size={13} strokeWidth={3}/>}</div>
+                        <img src={sp.src} alt={sp.id} style={{ height:28, width:84, objectFit:"contain", flexShrink:0, opacity:on?1:0.4 }} onError={e => { e.target.style.visibility = "hidden"; }} />
+                        <div style={{ flex:1, minWidth:0, fontSize:12, fontWeight:600, color:on?D.text:D.textSub, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{bonito(sp.id)}</div>
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
+          </Card>
+
+          {/* Patrocinadores subidos desde la app (solo este torneo) */}
+          <Card>
+            <SLabel><Handshake size={13}/> Logos propios de este torneo</SLabel>
+            <div style={{ fontSize:11, color:D.textSub, marginBottom:10 }}>Sube aquí logos nuevos solo para este torneo (se agregan a la franja junto con los marcados arriba).</div>
             {patrocinadoresList.map(p => {
               const st = uploadState[p.id] || {};
               return (
