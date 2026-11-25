@@ -4245,28 +4245,68 @@ function AdminTorneoApp({ onExit }) {
           <button onClick={() => window.print()} style={{ width:"100%", padding:"12px", border:"none", borderRadius:12, background:`linear-gradient(135deg,${D.gold},${D.goldLight})`, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:12 }}><Printer size={15}/> Imprimir esta lista</button>
         </div>
         <div style={{ padding:"0 12px 32px" }}>
-          <Card className="print-card">
-            <SLabel>Equipos, jugadores y códigos — {torneo.nombre}</SLabel>
-            {unidadesList.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Aún no hay unidades</div>}
-            {unidadesList.map((u, idx) => {
-              const marcaA = torneo.unidades?.[u.marcaA];
-              return (
-              <div key={u.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:idx<unidadesList.length-1?`1px solid ${D.border}`:"none" }}>
-                <div style={{ width:56, fontSize:11, color:D.textSub, fontWeight:700 }}>{u.hoyoSalida!=null ? `Hoyo ${u.hoyoSalida+1}${u.horaSalida ? ` · ${u.horaSalida}` : ""}` : "Sin hoyo"}</div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:700 }}>{u.nombre}</div>
-                  <div style={{ fontSize:11, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div>
-                  {marcaA && <div style={{ fontSize:10, color:D.textSub, marginTop:2 }}>Código App: anota a <b style={{ color:D.gold }}>{marcaA.nombre}</b></div>}
-                  {u.codigoGrupo && <div style={{ fontSize:10, color:D.textSub, marginTop:2 }}>Código de salida: un jugador anota a todo el grupo</div>}
-                </div>
-                <div style={{ textAlign:"right" }}>
-                  <div style={{ fontSize:16, fontWeight:900, color:D.gold, letterSpacing:1 }}>{u.codigo || "— sin código —"}</div>
-                  <div style={{ fontSize:9, color:D.textDim }}>código (link)</div>
-                </div>
-              </div>
-              );
-            })}
-          </Card>
+          {(() => {
+            // Agrupa por salida (mismo grupoId): hoyo + tee time, jugadores y código(s). Sin grupo al final.
+            const todas = Object.values(torneo.unidades||{});
+            const mapa = {};
+            todas.filter(u => u.grupoId).forEach(u => { (mapa[u.grupoId] = mapa[u.grupoId] || []).push(u); });
+            const grupos = Object.values(mapa).map(us => us.slice().sort((a,b) => (a.ordenGrupo ?? 0) - (b.ordenGrupo ?? 0)))
+              .sort((a,b) => (a[0].hoyoSalida ?? 999) - (b[0].hoyoSalida ?? 999) || String(a[0].horaSalida || "99:99").localeCompare(String(b[0].horaSalida || "99:99")));
+            const sinGrupo = todas.filter(u => !u.grupoId).sort((a,b) => a.nombre.localeCompare(b.nombre));
+            const cajaSt = { border:`1px solid ${D.border}`, borderRadius:12, padding:"10px 12px", marginBottom:10, background:D.card || "#fff", breakInside:"avoid", pageBreakInside:"avoid" };
+            return (
+              <>
+                <div style={{ fontSize:15, fontWeight:900, textAlign:"center", margin:"4px 0 10px" }}>{torneo.nombre}</div>
+                {todas.length===0 && <div style={{ textAlign:"center", color:D.textSub, padding:16, fontSize:13 }}>Aún no hay unidades</div>}
+                {grupos.map((us, gi) => {
+                  const codigoSalida = us[0].codigoGrupo;
+                  return (
+                    <div key={us[0].grupoId} className="print-card" style={cajaSt}>
+                      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8, borderBottom:`1px solid ${D.border}`, paddingBottom:6, marginBottom:6 }}>
+                        <div style={{ fontSize:14, fontWeight:900 }}>Salida {gi+1} · Hoyo {us[0].hoyoSalida != null ? us[0].hoyoSalida+1 : "—"}</div>
+                        {us[0].horaSalida && <div style={{ fontSize:14, fontWeight:900, color:D.gold }}>Tee time {us[0].horaSalida}</div>}
+                      </div>
+                      {codigoSalida && (
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"6px 10px", borderRadius:10, background:D.goldDim, border:`1px solid ${D.gold}55`, marginBottom:6 }}>
+                          <div style={{ fontSize:11, color:D.textSub }}>Código de la salida<br/>(un jugador anota a todos)</div>
+                          <div style={{ fontSize:26, fontWeight:900, color:D.gold, letterSpacing:3 }}>{us[0].codigo}</div>
+                        </div>
+                      )}
+                      {us.map(u => {
+                        const marcaA = torneo.unidades?.[u.marcaA];
+                        return (
+                          <div key={u.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", borderTop:`1px dashed ${D.border}` }}>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:13, fontWeight:700 }}>{u.nombre}</div>
+                              {u.jugadores.length>1 || u.jugadores[0]?.name !== u.nombre ? <div style={{ fontSize:11, color:D.textSub }}>{u.jugadores.map(j=>j.name).join(", ")}</div> : null}
+                              {marcaA && <div style={{ fontSize:10, color:D.textSub }}>Anota a: <b style={{ color:D.gold }}>{marcaA.nombre}</b></div>}
+                            </div>
+                            {!codigoSalida && (
+                              <div style={{ textAlign:"right" }}>
+                                <div style={{ fontSize:17, fontWeight:900, color:D.gold, letterSpacing:1.5 }}>{u.codigo || "— sin código —"}</div>
+                                <div style={{ fontSize:9, color:D.textDim }}>código</div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                {sinGrupo.length>0 && (
+                  <div className="print-card" style={cajaSt}>
+                    <div style={{ fontSize:14, fontWeight:900, borderBottom:`1px solid ${D.border}`, paddingBottom:6, marginBottom:6 }}>Sin grupo de salida</div>
+                    {sinGrupo.map(u => (
+                      <div key={u.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", borderTop:`1px dashed ${D.border}` }}>
+                        <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:700 }}>{u.nombre}</div></div>
+                        <div style={{ fontSize:17, fontWeight:900, color:D.gold, letterSpacing:1.5 }}>{u.codigo || "— sin código —"}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <div style={{ fontSize:11, color:D.textDim, textAlign:"center" }} className="no-print">Cada equipo debe usar únicamente su propio código, o entrar a "Registro de Score" desde la app y escribir el nombre correcto, para evitar que anoten scores que no les corresponden.</div>
         </div>
       </div>
